@@ -1,4 +1,4 @@
-import type { ResolvedObject, ResolvedTransform } from "relgeo-geometry";
+import type { ResolvedObject, ResolvedTransform } from "@relgeo/geometry";
 import { escapeXml } from "./escape";
 import type { RenderOptions } from "./types";
 

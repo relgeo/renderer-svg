@@ -6,7 +6,7 @@ Package ini bertanggung jawab mengubah hasil resolve runtime menjadi surface SVG
 
 Ia mengikuti kontrak bahasa aktif `RelGeo DSL v0.5`, yang disajikan melalui website pada `/docs/language-spec/`.
 
-Metadata package `relgeo-renderer-svg` saat ini adalah `0.4.0`. Versi renderer package terpisah dari kontrak DSL `v0.5`; publish atau release publik memerlukan workflow tersendiri.
+Metadata package `@relgeo/renderer-svg` saat ini adalah `0.5.0`, pada compatibility line RelGeo DSL `v0.5`. Patch release dapat bergerak mandiri; perubahan kontrak bahasa akan dinaikkan bersama ke line berikutnya.
 
 Status packaging saat ini:
 
@@ -22,8 +22,8 @@ Pakai package ini jika Anda ingin:
 
 Jika yang Anda butuhkan berbeda:
 
-* gunakan `relgeo-core` untuk menghasilkan resolved scene
-* gunakan `relgeo-cli` bila hanya ingin compile dari terminal
+* gunakan `@relgeo/core` untuk menghasilkan resolved scene
+* gunakan `@relgeo/cli` bila hanya ingin compile dari terminal
 * gunakan `relgeo-playground` bila ingin UI interaktif siap pakai
 
 Dalam monorepo ini:
@@ -35,7 +35,7 @@ pnpm install
 Peran package ini di repo:
 
 * renderer utama untuk `relgeo-playground`
-* renderer SVG untuk `relgeo-cli`
+* renderer SVG untuk `@relgeo/cli`
 * tempat eksperimen render yang tetap terpisah dari resolver geometry inti
 
 Catatan konseptual:

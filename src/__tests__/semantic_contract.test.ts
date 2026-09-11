@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { parseRelGeo, resolveGeometry, getObjectDependencies, normalizeUnit, evaluateExpression } from "relgeo-core";
-import type { ResolvedRect } from "relgeo-geometry";
+import { parseRelGeo, resolveGeometry, getObjectDependencies, normalizeUnit, evaluateExpression } from "@relgeo/core";
+import type { ResolvedRect } from "@relgeo/geometry";
 import { renderToSVG } from "../index";
 
 describe("Semantic Contract Strengthening", () => {

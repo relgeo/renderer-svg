@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderToSVG } from "../index";
-import type { ResolvedScene } from "relgeo-geometry";
+import type { ResolvedScene } from "@relgeo/geometry";
 
 describe("renderer", () => {
   it("should render a simple rect to SVG", () => {

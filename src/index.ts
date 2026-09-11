@@ -1,4 +1,4 @@
-import { ResolvedScene, ResolvedObject, calculateBoundingBox, TECHNICAL_ROLES, TechnicalRole } from "relgeo-geometry";
+import { ResolvedScene, ResolvedObject, calculateBoundingBox, TECHNICAL_ROLES, TechnicalRole } from "@relgeo/geometry";
 import { Renderer, RenderOptions } from "./types";
 import { renderPrimitive } from "./primitives";
 import { getCommonAttributes, getMetadataAttributes, getTransformString, renderAnchors } from "./utils";

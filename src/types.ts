@@ -1,4 +1,4 @@
-import { ResolvedScene, TechnicalRole } from "relgeo-geometry";
+import { ResolvedScene, TechnicalRole } from "@relgeo/geometry";
 
 export type RoleVisibilityOptions = {
   [K in TechnicalRole as `show${Capitalize<K>}`]?: boolean;

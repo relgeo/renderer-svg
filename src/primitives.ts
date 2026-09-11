@@ -10,7 +10,7 @@ import type {
     ResolvedPath,
     ResolvedPoint,
     ResolvedObject
-} from "relgeo-geometry";
+} from "@relgeo/geometry";
 import { escapeXml } from "./escape";
 
 function extractStrokeFromCommonAttr(commonAttr: string): string | undefined {

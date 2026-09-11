@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { evaluateExpression, type EvalContext, resolveGeometry, parseRelGeo } from "relgeo-core";
-import type { ResolvedRect } from "relgeo-geometry";
+import { evaluateExpression, type EvalContext, resolveGeometry, parseRelGeo } from "@relgeo/core";
+import type { ResolvedRect } from "@relgeo/geometry";
 import { renderToSVG } from "../index";
 
 describe("v0.1 Final Gap Closure", () => {
