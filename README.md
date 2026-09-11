@@ -11,7 +11,8 @@ Metadata package `@relgeo/renderer-svg` saat ini adalah `0.5.0`, pada compatibil
 Status packaging saat ini:
 
 * package ini adalah renderer library surface
-* konsumsi utamanya saat ini datang dari package workspace lain di monorepo RelGeo
+* package publik tersedia melalui npm sebagai `@relgeo/renderer-svg`
+* workspace root tetap dipakai untuk integrasi dan verifikasi lintas-repo
 * ia bukan source of truth bahasa, melainkan lapisan render untuk kontrak yang ditetapkan oleh `relgeo/spec`
 
 Pakai package ini jika Anda ingin:
