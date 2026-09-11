@@ -1,0 +1,47 @@
+{
+  "name": "relgeo-renderer-svg",
+  "version": "0.4.0",
+  "description": "SVG rendering library for RelGeo resolved geometries",
+  "homepage": "https://relgeo.github.io/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/relgeo/renderer-svg.git"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --noEmit && tsup",
+    "dev": "tsc --noEmit && tsup --watch",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:dist": "vitest run src/__tests__/dist_boundary.test.ts"
+  },
+  "keywords": [
+    "relgeo",
+    "renderer",
+    "svg"
+  ],
+  "author": "Agus Made",
+  "license": "MIT",
+  "packageManager": "pnpm@10.33.3",
+  "dependencies": {
+    "relgeo-geometry": "^0.4.0"
+  },
+  "devDependencies": {
+    "relgeo-core": "^0.4.0",
+    "tsup": "^8.5.1",
+    "typescript": "~6.0.3",
+    "vitest": "^4.1.5"
+  }
+}
