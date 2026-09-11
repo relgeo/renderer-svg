@@ -32,7 +32,11 @@
     "renderer",
     "svg"
   ],
-  "author": "Agus Made",
+  "author": {
+    "name": "Agus Made",
+    "email": "krisnaparta@gmail.com",
+    "url": "https://github.com/agusmade"
+  },
   "license": "MIT",
   "publishConfig": {
     "access": "public",
