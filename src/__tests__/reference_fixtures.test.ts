@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { parseRelGeo, resolveGeometry } from "../../../core/src";
+import { parseRelGeo, resolveGeometry } from "@relgeo/core";
 import { renderToSVG } from "../index";
 
 function loadResolvedFixture(name: string) {
