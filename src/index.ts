@@ -1,5 +1,5 @@
 import { ResolvedScene, ResolvedObject, calculateBoundingBox, TECHNICAL_ROLES, TechnicalRole } from "@relgeo/geometry";
-import { Renderer, RenderOptions } from "./types";
+import { Renderer, RenderOptions, SVGRenderError } from "./types";
 import { renderPrimitive } from "./primitives";
 import { getCommonAttributes, getMetadataAttributes, getTransformString, renderAnchors } from "./utils";
 import { escapeXml } from "./escape";
@@ -10,6 +10,7 @@ export * from "./types";
 export * from "./escape";
 export * from "./utils";
 export * from "./primitives";
+export * from "./semantic";
 
 export class SVGRenderer implements Renderer<string> {
   private renderedIds = new Set<string>();
@@ -32,7 +33,13 @@ export class SVGRenderer implements Renderer<string> {
 
   render(scene: ResolvedScene, options: RenderOptions = {}): string {
     this.options = options;
-    if (options.sheetId && scene.sheets?.[options.sheetId]) {
+    if (options.padding !== undefined && (!Number.isFinite(options.padding) || options.padding < 0)) {
+      throw new SVGRenderError("INVALID_RENDER_OPTIONS", "Render option \"padding\" must be a finite non-negative number");
+    }
+    if (options.sheetId !== undefined) {
+      if (!scene.sheets?.[options.sheetId]) {
+        throw new SVGRenderError("MISSING_SHEET", `Unknown sheet \"${options.sheetId}\"`);
+      }
       return this.renderSheet(scene, options.sheetId, options);
     }
 
@@ -179,7 +186,10 @@ export class SVGRenderer implements Renderer<string> {
       const childrenHtml = (obj.children || [])
         .map((childId: string) => {
           const child = scene.objects[childId];
-          return child ? this.renderRecursive(child, scene, meta, showAnchors, obj.type === "clone" ? obj.id : idPrefix, isCloneDescendant || obj.type === "clone") : "";
+          if (!child) {
+            throw new SVGRenderError("MISSING_COMPOSITION_TARGET", `Object \"${obj.id}\" references missing child \"${childId}\"`);
+          }
+          return this.renderRecursive(child, scene, meta, showAnchors, obj.type === "clone" ? obj.id : idPrefix, isCloneDescendant || obj.type === "clone");
         })
         .join("\n    ");
       
@@ -196,7 +206,9 @@ export class SVGRenderer implements Renderer<string> {
 
     const commonAttr = getCommonAttributes(fullId, meta, this.options, obj.type, scene, obj);
     const primitiveHtml = renderPrimitive(obj, commonAttr, meta, scene);
-    if (!primitiveHtml) return "";
+    if (!primitiveHtml) {
+      throw new SVGRenderError("UNSUPPORTED_RESOLVED_SHAPE", `Unsupported resolved shape \"${obj.type}\" for object \"${obj.id}\"`);
+    }
     let finalHtml = primitiveHtml;
     if (this.options.showBoundingBox) {
       const bbox = calculateBoundingBox({ [obj.id]: obj });
@@ -243,7 +255,9 @@ export class SVGRenderer implements Renderer<string> {
 
     sheet.views.forEach((vPlacement, idx) => {
       const view = scene.views?.[vPlacement.use];
-      if (!view) return;
+      if (!view) {
+        throw new SVGRenderError("MISSING_VIEW", `Sheet \"${sheetId}\" references missing view \"${vPlacement.use}\"`);
+      }
 
     // Removed clipPath to avoid cutting off annotations outside the bounding box
     // const clipId = \`clip-\${sheetId}-\${vPlacement.use}-\${idx}\`;

@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { parseRelGeo, resolveGeometry } from "@relgeo/core";
 import { getCommonAttributes } from "../utils";
-import { renderText } from "../primitives";
+import { renderAnnotation, renderDimension, renderText } from "../primitives";
+import { renderToSVG } from "../index";
 
 describe("SVG Security", () => {
   it("should escape special characters in common attributes", () => {
@@ -41,5 +45,59 @@ describe("SVG Security", () => {
     expect(rendered).toContain('font-size="12"');
     expect(rendered).toContain('font-family="sans-serif"');
     expect(rendered).toContain('dominant-baseline="hanging"');
+  });
+
+  it("should escape dimension presentation attributes and label text", () => {
+    const dimension = renderDimension(
+      {
+        kind: "linear",
+        from: { x: 0, y: 0 },
+        to: { x: 20, y: 0 },
+        text: "<script>alert(1)</script>",
+        meta: {
+          fontFamily: '"><script>alert(2)</script><text "',
+          fill: '"/><script>alert(3)</script><text "',
+        },
+      },
+      'id="dimension"',
+      { bbox: { x: 0, y: 0, width: 20, height: 20 } },
+    );
+
+    expect(dimension).not.toContain("<script>");
+    expect(dimension).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(dimension).toContain('font-family="&quot;&gt;&lt;script&gt;alert(2)&lt;/script&gt;&lt;text &quot;"');
+    expect(dimension).toContain('fill="&quot;/&gt;&lt;script&gt;alert(3)&lt;/script&gt;&lt;text &quot;"');
+  });
+
+  it("should escape annotation presentation attributes and leader text", () => {
+    const annotation = renderAnnotation(
+      {
+        text: "<script>alert(4)</script>",
+        leader: { from: { x: 0, y: 0 }, to: { x: 10, y: 10 } },
+        meta: {
+          fontFamily: '"><script>alert(5)</script><text "',
+          fill: '"/><script>alert(6)</script><text "',
+        },
+      },
+      'id="annotation"',
+      { bbox: { x: 0, y: 0, width: 20, height: 20 } },
+    );
+
+    expect(annotation).not.toContain("<script>");
+    expect(annotation).toContain("&lt;script&gt;alert(4)&lt;/script&gt;");
+    expect(annotation).toContain('font-family="&quot;&gt;&lt;script&gt;alert(5)&lt;/script&gt;&lt;text &quot;"');
+    expect(annotation).toContain('fill="&quot;/&gt;&lt;script&gt;alert(6)&lt;/script&gt;&lt;text &quot;"');
+  });
+
+  it("should keep the v0.5 presentation escaping fixture free of executable markup", () => {
+    const fixturePath = fileURLToPath(new URL("./fixtures/v05-presentation-escaping.yaml", import.meta.url));
+    const scene = resolveGeometry(parseRelGeo(readFileSync(fixturePath, "utf8")));
+    const svg = renderToSVG(scene);
+
+    expect(svg).not.toContain("<script>");
+    expect(svg).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+    expect(svg).toContain("&lt;script&gt;alert(4)&lt;/script&gt;");
+    expect(svg).toContain("&lt;script&gt;alert(2)&lt;/script&gt;");
+    expect(svg).toContain("&lt;script&gt;alert(5)&lt;/script&gt;");
   });
 });

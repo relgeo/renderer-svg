@@ -51,6 +51,25 @@ Metadata inspeksi pada output SVG:
 * proyeksi ini ditujukan untuk inspection, tooling, dan debug, bukan untuk mengubah geometri
 * jejak asal merge seperti `meta.inherit` tidak dijamin tersedia pada tahap render karena renderer bekerja pada resolved scene
 
+Semantic projection untuk parity:
+
+* `projectSVGSemanticScene(scene)` mengekspos schema `relgeo.svg-semantic`
+  versi 1 dengan urutan object eksplisit, identity/kind, endpoint, segment,
+  ring/hole topology, dan geometry values yang dinormalisasi
+* `serializeSVGSemanticScene(scene)` memberi JSON deterministik untuk fixture
+  dan consumer comparator
+* projection menetapkan tolerance evidence `1e-6`; ini bukan epsilon DSL dan
+  bukan kontrak raw SVG bytes, whitespace, attribute order, style, viewBox, atau
+  font metrics
+
+Render errors:
+
+* `SVGRenderError` exposes stable codes for invalid options, missing sheets or
+  views, missing composition targets, and unsupported resolved shapes
+* requesting an unknown `sheetId` or referencing a missing sheet view fails
+  explicitly; it does not fall back to model rendering or silently skip the
+  view
+
 Catatan render surface aktif:
 
 * hasil `split` yang sudah di-resolve sebagai piece path akan dirender seperti path biasa

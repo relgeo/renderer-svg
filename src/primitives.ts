@@ -286,7 +286,9 @@ export function renderDimension(obj: any, commonAttr: string, scene: any): strin
     const defFontSize = Math.max(scaleRef * 0.04, 1);
     const fontSizeBase = obj.meta?.fontSize ?? defFontSize;
     const fontSize = fontSizeBase / presentationalScale;
-    const textStyle = `font-size="${fontSize}px" font-family="${obj.meta?.fontFamily ?? 'sans-serif'}" fill="${obj.meta?.fill ?? '#444444'}" stroke="none"`;
+    const fontFamily = escapeXml(obj.meta?.fontFamily ?? "sans-serif");
+    const fill = escapeXml(obj.meta?.fill ?? "#444444");
+    const textStyle = `font-size="${fontSize}px" font-family="${fontFamily}" fill="${fill}" stroke="none"`;
     const effectiveStroke = obj.meta?.stroke ? escapeXml(obj.meta.stroke) : (extractStrokeFromCommonAttr(commonAttr) ?? "#000000");
     const arrowFill = effectiveStroke;
 
@@ -506,8 +508,8 @@ export function renderAnnotation(obj: any, commonAttr: string, scene: any): stri
         html += `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}"${ve} />`;
         html += `<circle cx="${from.x}" cy="${from.y}" r="${2 / presentationalScale}" fill="${effectiveStroke}" stroke="none" />`;
         html += arrowPath;
-        const fontFam = obj.meta?.fontFamily ?? "sans-serif";
-        const fill = obj.meta?.fill ?? "#333333";
+        const fontFam = escapeXml(obj.meta?.fontFamily ?? "sans-serif");
+        const fill = escapeXml(obj.meta?.fill ?? "#333333");
         html += `<line x1="${to.x}" y1="${to.y}" x2="${accentEndX}" y2="${to.y}"${ve} />`;
         html += `<text${textOrientationTransform(textX, to.y)} x="${textX}" y="${to.y}" dominant-baseline="hanging" font-size="${fontSize}px" font-family="${fontFam}" fill="${fill}">`;
         lines.forEach((line: string, idx: number) => {
@@ -520,8 +522,8 @@ export function renderAnnotation(obj: any, commonAttr: string, scene: any): stri
             const x = place.x;
             const y = place.y;
             const lines = (obj.text || "").split("\n");
-            const fontFam = obj.meta?.fontFamily ?? "sans-serif";
-            const fill = obj.meta?.fill ?? "#333333";
+            const fontFam = escapeXml(obj.meta?.fontFamily ?? "sans-serif");
+            const fill = escapeXml(obj.meta?.fill ?? "#333333");
             
             html += `<text${textOrientationTransform(x, y)} x="${x}" y="${y}" dominant-baseline="hanging" font-size="${fontSize}px" font-family="${fontFam}" fill="${fill}">`;
             lines.forEach((line: string, idx: number) => {

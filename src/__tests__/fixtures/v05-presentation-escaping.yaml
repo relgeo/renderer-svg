@@ -1,0 +1,28 @@
+version: 0.5
+scene:
+  unit: px
+objects:
+  start:
+    type: point
+    at: [0, 0]
+  end:
+    type: point
+    at: [20, 0]
+  dimension:
+    type: dimension
+    kind: linear
+    from: start
+    to: end
+    text: '<script>alert(1)</script>'
+    meta:
+      fontFamily: '"><script>alert(2)</script><text "'
+      fill: '"/><script>alert(3)</script><text "'
+  annotation:
+    type: annotation
+    text: '<script>alert(4)</script>'
+    leader:
+      from: start
+      to: [20, 10]
+    meta:
+      fontFamily: '"><script>alert(5)</script><text "'
+      fill: '"/><script>alert(6)</script><text "'

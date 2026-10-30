@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderToSVG } from "../index";
+import { renderToSVG, SVGRenderError } from "../index";
 import type { ResolvedScene } from "@relgeo/geometry";
 
 describe("renderer", () => {
@@ -1512,5 +1512,94 @@ describe("renderer", () => {
     const visibleGuideSvg = renderToSVG(scene, { sheetId: "drawing1", showGuide: true });
     expect(visibleGuideSvg).toContain('id="sheet.front.guideLine"');
     expect(visibleGuideSvg).toContain('class="role-guide"');
+  });
+
+  it("should reject an unknown sheet instead of falling back to model rendering", () => {
+    const scene: ResolvedScene = {
+      unit: "px",
+      objects: {},
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 10, height: 10 },
+      sheets: {},
+    };
+
+    expect(() => renderToSVG(scene, { sheetId: "missing" })).toThrowError(
+      expect.objectContaining({
+        name: "SVGRenderError",
+        code: "MISSING_SHEET",
+      }),
+    );
+  });
+
+  it("should reject a sheet that references a missing view", () => {
+    const scene: ResolvedScene = {
+      unit: "px",
+      objects: {},
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 10, height: 10 },
+      sheets: {
+        drawing: {
+          id: "drawing",
+          size: "A4",
+          width: 297,
+          height: 210,
+          views: [{ use: "missing", x: 0, y: 0, width: 10, height: 10 }],
+        },
+      },
+      views: {},
+    };
+
+    expect(() => renderToSVG(scene, { sheetId: "drawing" })).toThrowError(
+      expect.objectContaining({
+        name: "SVGRenderError",
+        code: "MISSING_VIEW",
+      }),
+    );
+  });
+
+  it("should reject invalid padding and unsupported resolved shapes explicitly", () => {
+    const scene: ResolvedScene = {
+      unit: "px",
+      objects: {
+        mystery: { id: "mystery", type: "mystery" } as any,
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 10, height: 10 },
+    };
+
+    expect(() => renderToSVG(scene, { padding: -1 })).toThrowError(
+      expect.objectContaining({
+        name: "SVGRenderError",
+        code: "INVALID_RENDER_OPTIONS",
+      }),
+    );
+    expect(() => renderToSVG(scene)).toThrowError(
+      expect.objectContaining({
+        name: "SVGRenderError",
+        code: "UNSUPPORTED_RESOLVED_SHAPE",
+      }),
+    );
+  });
+
+  it("should reject missing composition targets instead of silently dropping children", () => {
+    const scene: ResolvedScene = {
+      unit: "px",
+      objects: {
+        group: { id: "group", type: "group", children: ["missing"] },
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 10, height: 10 },
+    };
+
+    expect(() => renderToSVG(scene)).toThrowError(
+      expect.objectContaining({
+        name: "SVGRenderError",
+        code: "MISSING_COMPOSITION_TARGET",
+      }),
+    );
   });
 });
