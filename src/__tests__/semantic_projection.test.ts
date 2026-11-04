@@ -49,7 +49,7 @@ describe("SVG semantic projection", () => {
     expect(projection.compatibilityLine).toBe("0.5");
     expect(projection.tolerance).toBe(SVG_SEMANTIC_TOLERANCE);
     expect(projection.objectOrder).toEqual(["line", "outline", "assembly"]);
-    expect(projection.objects[0]).toMatchObject({
+    expect(projection.objects.find((object) => object.id === "line")).toMatchObject({
       id: "line",
       kind: "line",
       geometry: {
@@ -59,9 +59,9 @@ describe("SVG semantic projection", () => {
         },
       },
     });
-    expect(projection.objects[1].geometry.rings).toHaveLength(1);
-    expect(projection.objects[1].geometry.holes).toHaveLength(1);
-    expect(projection.objects[2].children).toEqual(["line", "outline"]);
+    expect(projection.objects.find((object) => object.id === "outline")?.geometry.rings).toHaveLength(1);
+    expect(projection.objects.find((object) => object.id === "outline")?.geometry.holes).toHaveLength(1);
+    expect(projection.objects.find((object) => object.id === "assembly")?.children).toEqual(["line", "outline"]);
   });
 
   it("serializes the same resolved scene deterministically", () => {
@@ -76,5 +76,75 @@ describe("SVG semantic projection", () => {
     };
 
     expect(serializeSVGSemanticScene(scene)).toBe(serializeSVGSemanticScene(scene));
+  });
+
+  it("canonicalizes object order and preserves dimension/annotation placement semantics", () => {
+    const scene: ResolvedScene = {
+      unit: "mm",
+      objects: {
+        note: {
+          id: "note",
+          type: "annotation",
+          target: "panel",
+          text: "Inspect",
+          leader: { from: { x: 10, y: 10 }, to: { x: 40, y: 25 } },
+          place: { x: 40, y: 25, width: 42, height: 12 },
+        },
+        panel: { id: "panel", type: "rect", x: 0, y: 0, width: 30, height: 20 },
+        width: {
+          id: "width",
+          type: "dimension",
+          kind: "linear",
+          from: { x: 0, y: 0 },
+          to: { x: 30, y: 0 },
+          offset: 6,
+          distance: 30,
+        },
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 30, height: 25 },
+    };
+
+    const projection = projectSVGSemanticScene(scene);
+    expect(projection.objectOrder).toEqual(["note", "panel", "width"]);
+    expect(projection.objects.find((object) => object.id === "width")).toMatchObject({
+      geometry: {
+        endpoints: { from: { x: 0, y: 0 }, to: { x: 30, y: 0 } },
+        values: { kind: "linear", offset: 6, distance: 30 },
+      },
+    });
+    expect(projection.objects.find((object) => object.id === "note")).toMatchObject({
+      references: ["panel"],
+      geometry: {
+        endpoints: { from: { x: 10, y: 10 }, to: { x: 40, y: 25 } },
+        values: { x: 40, y: 25, width: 42, height: 12 },
+      },
+    });
+  });
+
+  it("retains explicit object order so semantic replay detects a reorder", () => {
+    const base = {
+      unit: "px" as const,
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 10, height: 10 },
+    };
+    const first: ResolvedScene = {
+      ...base,
+      objects: {
+        zeta: { id: "zeta", type: "point", x: 2, y: 2 },
+        alpha: { id: "alpha", type: "point", x: 1, y: 1 },
+      },
+    };
+    const second: ResolvedScene = {
+      ...base,
+      objects: {
+        alpha: { id: "alpha", type: "point", x: 1, y: 1 },
+        zeta: { id: "zeta", type: "point", x: 2, y: 2 },
+      },
+    };
+
+    expect(serializeSVGSemanticScene(first)).not.toBe(serializeSVGSemanticScene(second));
   });
 });

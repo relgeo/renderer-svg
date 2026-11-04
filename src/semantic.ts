@@ -116,6 +116,51 @@ function endpoints(from: SVGSemanticPoint, to: SVGSemanticPoint): SVGSemanticGeo
   return { endpoints: { from, to } };
 }
 
+function placementValues(place: any, path: string): Record<string, number> | undefined {
+  if (!place || typeof place !== "object") return undefined;
+  const values: Record<string, number> = {};
+  for (const key of ["x", "y", "width", "height"]) {
+    if (place[key] !== undefined) {
+      values[key] = normalizeNumber(place[key], `${path}.${key}`);
+    }
+  }
+  return Object.keys(values).length > 0 ? values : undefined;
+}
+
+function projectTransform(transform: any, path: string): NonNullable<ResolvedObject["transform"]>[number] {
+  switch (transform.type) {
+    case "translate":
+      return {
+        type: "translate",
+        x: normalizeNumber(transform.x, `${path}.x`),
+        y: normalizeNumber(transform.y, `${path}.y`),
+      };
+    case "rotate":
+      return {
+        type: "rotate",
+        angle: normalizeNumber(transform.angle, `${path}.angle`),
+        origin: point(transform.origin.x, transform.origin.y, `${path}.origin`),
+      };
+    case "scale":
+      return {
+        type: "scale",
+        factor: [
+          normalizeNumber(transform.factor[0], `${path}.factor[0]`),
+          normalizeNumber(transform.factor[1], `${path}.factor[1]`),
+        ],
+        origin: point(transform.origin.x, transform.origin.y, `${path}.origin`),
+      };
+    case "mirror":
+      return {
+        type: "mirror",
+        axis: transform.axis,
+        origin: point(transform.origin.x, transform.origin.y, `${path}.origin`),
+      };
+    default:
+      throw new Error(`INVALID_SEMANTIC_PROJECTION: unsupported transform at ${path}`);
+  }
+}
+
 function projectObject(obj: ResolvedObject, path: string): SVGSemanticObject {
   const raw = obj as any;
   const result: SVGSemanticObject = {
@@ -129,24 +174,9 @@ function projectObject(obj: ResolvedObject, path: string): SVGSemanticObject {
     .filter((value): value is string => typeof value === "string");
   if (references.length > 0) result.references = references;
   if (Array.isArray(raw.transform)) {
-    result.transform = raw.transform.map((transform: any, index: number) => {
-      const normalized = { ...transform };
-      if (transform.type === "translate") {
-        normalized.x = normalizeNumber(transform.x, `${path}.transform[${index}].x`);
-        normalized.y = normalizeNumber(transform.y, `${path}.transform[${index}].y`);
-      } else if (transform.type === "rotate") {
-        normalized.angle = normalizeNumber(transform.angle, `${path}.transform[${index}].angle`);
-        normalized.origin = point(transform.origin.x, transform.origin.y, `${path}.transform[${index}].origin`);
-      } else if (transform.type === "scale") {
-        normalized.factor = transform.factor.map((value: number, factorIndex: number) =>
-          normalizeNumber(value, `${path}.transform[${index}].factor[${factorIndex}]`),
-        );
-        normalized.origin = point(transform.origin.x, transform.origin.y, `${path}.transform[${index}].origin`);
-      } else if (transform.type === "mirror") {
-        normalized.origin = point(transform.origin.x, transform.origin.y, `${path}.transform[${index}].origin`);
-      }
-      return normalized;
-    });
+    result.transform = raw.transform.map((transform: any, index: number) =>
+      projectTransform(transform, `${path}.transform[${index}]`),
+    );
   }
 
   switch (obj.type) {
@@ -248,24 +278,30 @@ function projectObject(obj: ResolvedObject, path: string): SVGSemanticObject {
       break;
     case "dimension":
       result.geometry = {
-        ...(raw.from && raw.to
-          ? endpoints(point(raw.from.x, raw.from.y, `${path}.from`), point(raw.to.x, raw.to.y, `${path}.to`))
-          : {}),
         values: {
+          kind: raw.kind,
           ...(raw.offset === undefined ? {} : { offset: normalizeNumber(raw.offset, `${path}.offset`) }),
           ...(raw.distance === undefined ? {} : { distance: normalizeNumber(raw.distance, `${path}.distance`) }),
           ...(raw.angle === undefined ? {} : { angle: normalizeNumber(raw.angle, `${path}.angle`) }),
         },
+        ...(raw.from && raw.to
+          ? endpoints(point(raw.from.x, raw.from.y, `${path}.from`), point(raw.to.x, raw.to.y, `${path}.to`))
+          : {}),
       };
       break;
-    case "annotation":
-      result.geometry = raw.leader
-        ? endpoints(
-          point(raw.leader.from.x, raw.leader.from.y, `${path}.leader.from`),
-          point(raw.leader.to.x, raw.leader.to.y, `${path}.leader.to`),
-        )
-        : {};
+    case "annotation": {
+      const values = placementValues(raw.place, `${path}.place`);
+      result.geometry = {
+        ...(values ? { values } : {}),
+        ...(raw.leader
+          ? endpoints(
+            point(raw.leader.from.x, raw.leader.from.y, `${path}.leader.from`),
+            point(raw.leader.to.x, raw.leader.to.y, `${path}.leader.to`),
+          )
+          : {}),
+      };
       break;
+    }
     default:
       break;
   }
@@ -274,6 +310,9 @@ function projectObject(obj: ResolvedObject, path: string): SVGSemanticObject {
 }
 
 export function projectSVGSemanticScene(scene: ResolvedScene): SVGSemanticProjection {
+  // Resolved object order is semantic: it is the order supplied by the core
+  // resolver and used by the renderer. Canonicalization must not silently
+  // reorder scene objects; replay comparison should detect that change.
   const objectOrder = Object.keys(scene.objects ?? {});
   const bbox = scene.bbox;
   return {

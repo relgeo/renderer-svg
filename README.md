@@ -54,10 +54,14 @@ Metadata inspeksi pada output SVG:
 Semantic projection untuk parity:
 
 * `projectSVGSemanticScene(scene)` mengekspos schema `relgeo.svg-semantic`
-  versi 1 dengan urutan object eksplisit, identity/kind, endpoint, segment,
-  ring/hole topology, dan geometry values yang dinormalisasi
+  versi 1 dengan resolved object order yang eksplisit, identity/kind, endpoint, segment,
+  ring/hole topology, dimension kind/measurements, resolved annotation
+  placement, dan geometry values yang dinormalisasi
 * `serializeSVGSemanticScene(scene)` memberi JSON deterministik untuk fixture
   dan consumer comparator
+* replay semantik mempertahankan object order sebagai bagian dari makna scene,
+  tetapi menormalkan urutan key transform; consumer membandingkan projection
+  terstruktur, bukan markup SVG
 * projection menetapkan tolerance evidence `1e-6`; ini bukan epsilon DSL dan
   bukan kontrak raw SVG bytes, whitespace, attribute order, style, viewBox, atau
   font metrics
