@@ -117,6 +117,32 @@ describe("SVG semantic projection", () => {
     }).equal).toBe(false);
   });
 
+  it("uses the published semantic tolerance for numeric geometry while keeping topology strict", () => {
+    const projection = projectSVGSemanticScene({
+      unit: "px",
+      objects: {
+        point: { id: "point", type: "point", x: 10, y: 20 },
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 10, height: 20 },
+    });
+    const withinTolerance = structuredClone(projection);
+    withinTolerance.bbox.width += SVG_SEMANTIC_TOLERANCE / 2;
+    const outsideTolerance = structuredClone(projection);
+    outsideTolerance.bbox.width += SVG_SEMANTIC_TOLERANCE * 2;
+    const reordered = structuredClone(projection);
+    reordered.objectOrder = ["missing"];
+
+    expect(compareSVGSemanticReplay(projection, withinTolerance).equal).toBe(true);
+    expect(compareSVGSemanticReplay(projection, outsideTolerance).equal).toBe(false);
+    expect(compareSVGSemanticReplay(projection, reordered).equal).toBe(false);
+    expect(compareSVGSemanticReplay(projection, {
+      ...projection,
+      schemaVersion: 1.0000005 as typeof projection.schemaVersion,
+    }).equal).toBe(false);
+  });
+
   it("replays semantic projections across canonical fixture resolutions", () => {
     for (const fixture of [
       "10-v05-relational-baseline.yaml",

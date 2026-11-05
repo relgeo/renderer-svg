@@ -28,6 +28,31 @@ describe("renderer", () => {
     expect(svg).toContain('viewBox="-10 -10 140 140"'); // 100 + 20*2 = 140
   });
 
+  it("renders custom anchors with stable object-qualified labels", () => {
+    const scene: ResolvedScene = {
+      unit: "px",
+      objects: {
+        box: {
+          id: "box",
+          type: "rect",
+          x: 0,
+          y: 0,
+          width: 20,
+          height: 10,
+          anchors: { pin: { x: 7, y: 3 } },
+          meta: {},
+        } as any,
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 20, height: 10 },
+    };
+
+    const svg = renderToSVG(scene, { showAnchors: true });
+    expect(svg).toContain('<circle cx="7" cy="3"');
+    expect(svg).toContain('<title>box.pin</title>');
+  });
+
   it("should render multiple objects and calculate correct viewBox", () => {
     const scene: ResolvedScene = {
       unit: "px",

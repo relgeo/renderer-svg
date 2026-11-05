@@ -407,10 +407,37 @@ function serializeReplayInput(input: SVGSemanticReplayInput): string {
   return JSON.stringify(canonicalizeReplayValue(input));
 }
 
+function semanticReplayEqual(expected: unknown, actual: unknown, path = "root"): boolean {
+  if (typeof expected === "number" || typeof actual === "number") {
+    if (typeof expected !== "number" || typeof actual !== "number") return false;
+    if (!Number.isFinite(expected) || !Number.isFinite(actual)) {
+      throw new Error(`INVALID_SEMANTIC_REPLAY: non-finite number at ${path}`);
+    }
+    if (path.endsWith(".schemaVersion") || path.endsWith(".tolerance")) return expected === actual;
+    return Math.abs(expected - actual) <= SVG_SEMANTIC_TOLERANCE;
+  }
+  if (expected === null || actual === null) return expected === actual;
+  if (Array.isArray(expected) || Array.isArray(actual)) {
+    if (!Array.isArray(expected) || !Array.isArray(actual) || expected.length !== actual.length) return false;
+    return expected.every((value, index) => semanticReplayEqual(value, actual[index], `${path}[${index}]`));
+  }
+  if (typeof expected === "object" || typeof actual === "object") {
+    if (typeof expected !== "object" || typeof actual !== "object") return false;
+    const expectedRecord = expected as Record<string, unknown>;
+    const actualRecord = actual as Record<string, unknown>;
+    const expectedKeys = Object.keys(expectedRecord).filter((key) => expectedRecord[key] !== undefined).sort();
+    const actualKeys = Object.keys(actualRecord).filter((key) => actualRecord[key] !== undefined).sort();
+    if (expectedKeys.length !== actualKeys.length || expectedKeys.some((key, index) => key !== actualKeys[index])) return false;
+    return expectedKeys.every((key) => semanticReplayEqual(expectedRecord[key], actualRecord[key], `${path}.${key}`));
+  }
+  return expected === actual;
+}
+
 /**
  * Compare renderer semantic projections, not SVG presentation bytes.
- * Object keys are canonicalized, finite numbers are normalized to the
- * projection precision, and semantic array order is intentionally retained.
+ * Object keys are canonicalized, finite numbers are compared within the
+ * published semantic tolerance, and semantic array order is intentionally
+ * retained. Presentation bytes are deliberately not part of this contract.
  */
 export function compareSVGSemanticReplay(
   expected: SVGSemanticReplayInput,
@@ -418,8 +445,10 @@ export function compareSVGSemanticReplay(
 ): SVGSemanticReplayComparison {
   const expectedSnapshot = serializeReplayInput(expected);
   const actualSnapshot = serializeReplayInput(actual);
+  const expectedValue = JSON.parse(expectedSnapshot) as unknown;
+  const actualValue = JSON.parse(actualSnapshot) as unknown;
   return {
-    equal: expectedSnapshot === actualSnapshot,
+    equal: semanticReplayEqual(expectedValue, actualValue),
     expected: expectedSnapshot,
     actual: actualSnapshot,
   };

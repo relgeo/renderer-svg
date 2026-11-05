@@ -59,6 +59,10 @@ Semantic projection untuk parity:
   placement, dan geometry values yang dinormalisasi
 * `serializeSVGSemanticScene(scene)` memberi JSON deterministik untuk fixture
   dan consumer comparator
+* `compareSVGSemanticReplay(expected, actual)` membandingkan projection
+  terstruktur dengan tolerance numerik absolut `1e-6`, mempertahankan urutan
+  array semantik, dan menolak perubahan schema/topology; markup SVG tidak ikut
+  dibandingkan
 * replay semantik mempertahankan object order sebagai bagian dari makna scene,
   tetapi menormalkan urutan key transform; consumer membandingkan projection
   terstruktur, bukan markup SVG
