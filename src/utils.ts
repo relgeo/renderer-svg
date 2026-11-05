@@ -91,7 +91,11 @@ export function getCommonAttributes(id: string, meta: any, options: RenderOption
     const dash = dashStyle ? `stroke-dasharray="${escapeXml(dashStyle)}"` : "";
 
     let fontAttrs = "";
-    if (meta.fontSize !== undefined) fontAttrs += ` font-size="${escapeXml(meta.fontSize)}"`;
+    if (meta.fontSize !== undefined) {
+      const parsedFontSize = parseFloat(String(meta.fontSize));
+      const safeFontSize = Number.isFinite(parsedFontSize) && parsedFontSize > 0 ? parsedFontSize : 12;
+      fontAttrs += ` font-size="${safeFontSize}"`;
+    }
     if (meta.fontFamily !== undefined) fontAttrs += ` font-family="${escapeXml(meta.fontFamily)}"`;
     if (meta.fontWeight !== undefined) fontAttrs += ` font-weight="${escapeXml(meta.fontWeight)}"`;
     if (meta.fontStyle !== undefined) fontAttrs += ` font-style="${escapeXml(meta.fontStyle)}"`;

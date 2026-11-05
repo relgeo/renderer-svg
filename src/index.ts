@@ -6,6 +6,21 @@ import { escapeXml } from "./escape";
 
 const ACTIVE_REL_GEO_VERSION = "0.5";
 
+function validateRenderOptions(options: RenderOptions): void {
+  if (options.padding !== undefined && (!Number.isFinite(options.padding) || options.padding < 0)) {
+    throw new SVGRenderError("INVALID_RENDER_OPTIONS", "Render option \"padding\" must be a finite non-negative number");
+  }
+
+  if (options.hairlineWidth !== undefined) {
+    const parsed = typeof options.hairlineWidth === "number"
+      ? options.hairlineWidth
+      : parseFloat(options.hairlineWidth);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      throw new SVGRenderError("INVALID_RENDER_OPTIONS", "Render option \"hairlineWidth\" must be a finite positive number");
+    }
+  }
+}
+
 export * from "./types";
 export * from "./escape";
 export * from "./utils";
@@ -33,18 +48,15 @@ export class SVGRenderer implements Renderer<string> {
 
   render(scene: ResolvedScene, options: RenderOptions = {}): string {
     this.options = options;
-    if (options.padding !== undefined && (!Number.isFinite(options.padding) || options.padding < 0)) {
-      throw new SVGRenderError("INVALID_RENDER_OPTIONS", "Render option \"padding\" must be a finite non-negative number");
-    }
+    validateRenderOptions(options);
+    this.renderedIds.clear();
+    this.debugElements = [];
     if (options.sheetId !== undefined) {
       if (!scene.sheets?.[options.sheetId]) {
         throw new SVGRenderError("MISSING_SHEET", `Unknown sheet \"${options.sheetId}\"`);
       }
       return this.renderSheet(scene, options.sheetId, options);
     }
-
-    this.renderedIds.clear();
-    this.debugElements = [];
 
     const padding = options.padding ?? scene.padding ?? 20;
     const showAnchors = options.showAnchors ?? false;

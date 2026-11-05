@@ -90,19 +90,48 @@ function rings(segments: PathResolvedSegment[], path: string): SVGSemanticRing[]
   }));
 }
 
+function pointRing(points: SVGSemanticPoint[], path: string): SVGSemanticRing | undefined {
+  if (points.length < 2) return undefined;
+  const segments: SVGSemanticSegment[] = [];
+  for (let index = 0; index < points.length - 1; index++) {
+    segments.push({
+      type: "line",
+      from: point(points[index].x, points[index].y, `${path}.points[${index}]`),
+      to: point(points[index + 1].x, points[index + 1].y, `${path}.points[${index + 1}]`),
+    });
+  }
+
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (
+    Math.abs(first.x - last.x) > SVG_SEMANTIC_TOLERANCE
+    || Math.abs(first.y - last.y) > SVG_SEMANTIC_TOLERANCE
+  ) {
+    segments.push({
+      type: "line",
+      from: point(last.x, last.y, `${path}.closing.from`),
+      to: point(first.x, first.y, `${path}.closing.to`),
+    });
+  }
+  return { closed: true, segments };
+}
+
 function pathGeometry(obj: any, path: string): SVGSemanticGeometry {
   const geometry: SVGSemanticGeometry = {};
+  const isClosed = obj.closed === true || obj.type === "polygon" || obj.type === "boolean";
   if (Array.isArray(obj.points)) {
     geometry.points = obj.points.map((item: SVGSemanticPoint, index: number) =>
       point(item.x, item.y, `${path}.points[${index}]`),
     );
   }
-  if (Array.isArray(obj.segments)) {
+  if (Array.isArray(obj.segments) && obj.segments.length > 0) {
     geometry.segments = obj.segments.map((item: PathResolvedSegment, index: number) =>
       segment(item, `${path}.segments[${index}]`),
     );
-    const isClosed = obj.closed === true || obj.type === "polygon" || obj.type === "boolean";
     if (isClosed) geometry.rings = rings(obj.segments, `${path}.rings`);
+  } else if (isClosed && geometry.points) {
+    const ring = pointRing(geometry.points, `${path}.rings[0]`);
+    if (ring) geometry.rings = [ring];
   }
   if (Array.isArray(obj.holes)) {
     geometry.holes = obj.holes.flatMap((hole: { segments: PathResolvedSegment[] }, index: number) =>
@@ -273,6 +302,8 @@ function projectObject(obj: ResolvedObject, path: string): SVGSemanticObject {
           y: normalizeNumber(raw.y, `${path}.y`),
           width: normalizeNumber(raw.width, `${path}.width`),
           height: normalizeNumber(raw.height, `${path}.height`),
+          content: String(raw.content ?? ""),
+          anchor: String(raw.anchor ?? "center"),
         },
       };
       break;

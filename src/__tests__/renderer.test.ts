@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderToSVG, SVGRenderError } from "../index";
+import { renderToSVG, SVGRenderer, SVGRenderError } from "../index";
 import type { ResolvedScene } from "@relgeo/geometry";
 
 describe("renderer", () => {
@@ -1557,6 +1557,107 @@ describe("renderer", () => {
         code: "MISSING_VIEW",
       }),
     );
+  });
+
+  it("should validate hairline width before serializing it into SVG", () => {
+    const scene: ResolvedScene = {
+      unit: "px",
+      objects: {
+        line: { id: "line", type: "line", x1: 0, y1: 0, x2: 10, y2: 0, meta: { stroke: "black" } },
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 10, height: 10 },
+    };
+
+    for (const hairlineWidth of [Number.NaN, Number.POSITIVE_INFINITY, 0, -1, "not-a-number"]) {
+      expect(() => renderToSVG(scene, { hairlineWidth })).toThrowError(
+        expect.objectContaining({
+          name: "SVGRenderError",
+          code: "INVALID_RENDER_OPTIONS",
+        }),
+      );
+    }
+
+    expect(renderToSVG(scene, { hairline: true, hairlineWidth: "2px" })).toContain('stroke-width="2px"');
+  });
+
+  it("should fall back from invalid presentation metrics without emitting non-finite SVG", () => {
+    const scene: ResolvedScene = {
+      unit: "px",
+      objects: {
+        label: {
+          id: "label",
+          type: "text",
+          x: 0,
+          y: 0,
+          content: "first\nsecond",
+          meta: { fontSize: "not-a-number", lineHeight: "Infinity" },
+        },
+        baseline: { id: "baseline", type: "line", x1: 0, y1: 20, x2: 40, y2: 20, meta: { stroke: "black" } },
+        dimension: {
+          id: "dimension",
+          type: "dimension",
+          kind: "linear",
+          from: { x: 0, y: 20 },
+          to: { x: 40, y: 20 },
+          text: "40",
+          meta: { arrowSize: "NaN", fontSize: "Infinity" },
+        } as any,
+        note: {
+          id: "note",
+          type: "annotation",
+          text: "note",
+          leader: { from: { x: 0, y: 20 }, to: { x: 20, y: 30 } },
+          meta: { arrowSize: "NaN", fontSize: "Infinity" },
+        } as any,
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 40, height: 30 },
+    };
+
+    const svg = renderToSVG(scene);
+    expect(svg).not.toMatch(/(?:NaN|Infinity)/);
+    expect(svg).toContain('font-size="12"');
+  });
+
+  it("should reset renderer traversal state when switching between scene and sheet output", () => {
+    const scene: ResolvedScene = {
+      unit: "px",
+      objects: {
+        box: { id: "box", type: "rect", x: 0, y: 0, width: 10, height: 10, meta: { stroke: "black" } },
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 10, height: 10 },
+      views: {
+        front: {
+          id: "front",
+          scale: "1:1",
+          scaleFactor: 1,
+          bbox: { x: 0, y: 0, width: 10, height: 10 },
+          objects: {
+            box: { id: "box", type: "rect", x: 0, y: 0, width: 10, height: 10, meta: { stroke: "black" } },
+          },
+        },
+      },
+      sheets: {
+        drawing: {
+          id: "drawing",
+          size: "A4",
+          width: 100,
+          height: 80,
+          views: [{ use: "front", x: 0, y: 0, width: 20, height: 20 }],
+        },
+      },
+    } as any;
+
+    const renderer = new SVGRenderer();
+    renderer.render(scene);
+    renderer.render(scene, { sheetId: "drawing" });
+    const sceneAgain = renderer.render(scene);
+    expect(sceneAgain.match(/id="box"/g)).toHaveLength(1);
   });
 
   it("should reject invalid padding and unsupported resolved shapes explicitly", () => {

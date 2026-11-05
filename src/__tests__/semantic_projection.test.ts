@@ -147,4 +147,70 @@ describe("SVG semantic projection", () => {
 
     expect(serializeSVGSemanticScene(first)).not.toBe(serializeSVGSemanticScene(second));
   });
+
+  it("projects text content and anchor semantics alongside its measured box", () => {
+    const scene: ResolvedScene = {
+      unit: "px",
+      objects: {
+        label: {
+          id: "label",
+          type: "text",
+          x: 32,
+          y: 54,
+          width: 36,
+          height: 12,
+          content: "Hello\nWorld",
+          anchor: "center",
+        } as any,
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 32, y: 54, width: 36, height: 12 },
+    };
+
+    expect(projectSVGSemanticScene(scene).objects[0]).toMatchObject({
+      id: "label",
+      kind: "text",
+      geometry: {
+        values: {
+          x: 32,
+          y: 54,
+          width: 36,
+          height: 12,
+          content: "Hello\nWorld",
+          anchor: "center",
+        },
+      },
+    });
+  });
+
+  it("derives closed rings for point-authored paths without resolved segments", () => {
+    const scene: ResolvedScene = {
+      unit: "px",
+      objects: {
+        outline: {
+          id: "outline",
+          type: "path",
+          closed: true,
+          points: [
+            { x: 0, y: 0 },
+            { x: 10, y: 0 },
+            { x: 10, y: 10 },
+            { x: 0, y: 10 },
+          ],
+        } as any,
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 10, height: 10 },
+    };
+
+    const outline = projectSVGSemanticScene(scene).objects[0];
+    expect(outline.geometry.rings).toHaveLength(1);
+    expect(outline.geometry.rings?.[0].segments).toHaveLength(4);
+    expect(outline.geometry.rings?.[0].segments.at(-1)).toMatchObject({
+      from: { x: 0, y: 10 },
+      to: { x: 0, y: 0 },
+    });
+  });
 });

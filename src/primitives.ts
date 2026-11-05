@@ -33,6 +33,11 @@ function getPhysicalPresentationalScale(scene: any): number {
     return 1;
 }
 
+function finitePositive(value: unknown, fallback: number): number {
+    const parsed = typeof value === "number" ? value : parseFloat(String(value));
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 export function renderRect(obj: ResolvedRect, commonAttr: string): string {
     return `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" ${commonAttr} />`;
 }
@@ -68,8 +73,8 @@ export function renderCubic(obj: ResolvedCubic, commonAttr: string): string {
 
 export function renderPoint(obj: ResolvedPoint, commonAttr: string, meta: any, scene?: any): string {
     const presentationalScale = getPhysicalPresentationalScale(scene);
-    let size = meta.pointSize !== undefined ? parseFloat(meta.pointSize) : undefined;
-    if (size === undefined) {
+    let size = meta.pointSize !== undefined ? finitePositive(meta.pointSize, 0) : undefined;
+    if (size === undefined || size === 0) {
         const bbox = scene?.bbox;
         const maxDim = bbox ? Math.hypot(bbox.width, bbox.height) : 100;
         const scaleRef = maxDim > 0 ? maxDim : 100;
@@ -92,18 +97,15 @@ export function renderText(obj: ResolvedText, commonAttr: string, scene?: any): 
         attrs += ` font-size="${12 / presentationalScale}"`;
     } else {
         attrs = attrs.replace(/\sfont-size="([^"]+)"/, (_, raw) => {
-            const parsed = parseFloat(String(raw));
-            if (!Number.isFinite(parsed)) return ` font-size="${raw}"`;
+            const parsed = finitePositive(raw, 12);
             return ` font-size="${parsed / presentationalScale}"`;
         });
     }
     if (!/\sfont-family=/.test(attrs)) attrs += ` font-family="sans-serif"`;
     const lines = String(obj.content ?? "").split("\n");
-    const lineHeight = obj.meta?.lineHeight ?? 1;
+    const lineHeight = finitePositive(obj.meta?.lineHeight ?? 1, 1);
     const lineStep = (() => {
-        if (typeof lineHeight === "number") return `${lineHeight}em`;
-        const parsed = parseFloat(String(lineHeight));
-        return Number.isFinite(parsed) ? `${parsed}em` : "1em";
+        return `${lineHeight}em`;
     })();
 
     if (lines.length <= 1) {
@@ -280,11 +282,11 @@ export function renderDimension(obj: any, commonAttr: string, scene: any): strin
     const scaleRef = maxDim > 0 ? maxDim : 100;
 
     const defArrowL = scaleRef * 0.03;
-    const arrLBase = obj.meta?.arrowSize !== undefined ? parseFloat(obj.meta.arrowSize) : defArrowL;
+    const arrLBase = finitePositive(obj.meta?.arrowSize, defArrowL);
     const arrL = arrLBase / presentationalScale;
     const arrW = arrL / 3;
     const defFontSize = Math.max(scaleRef * 0.04, 1);
-    const fontSizeBase = obj.meta?.fontSize ?? defFontSize;
+    const fontSizeBase = finitePositive(obj.meta?.fontSize, defFontSize);
     const fontSize = fontSizeBase / presentationalScale;
     const fontFamily = escapeXml(obj.meta?.fontFamily ?? "sans-serif");
     const fill = escapeXml(obj.meta?.fill ?? "#444444");
@@ -468,11 +470,11 @@ export function renderAnnotation(obj: any, commonAttr: string, scene: any): stri
     const scaleRef = maxDim > 0 ? maxDim : 100;
 
     const defArrowL = scaleRef * 0.03;
-    const arrLBase = obj.meta?.arrowSize !== undefined ? parseFloat(obj.meta.arrowSize) : defArrowL;
+    const arrLBase = finitePositive(obj.meta?.arrowSize, defArrowL);
     const arrL = arrLBase / presentationalScale;
     const arrW = arrL / 3;
     const defFontSize = Math.max(scaleRef * 0.04, 1);
-    const fontSizeBase = obj.meta?.fontSize ?? defFontSize;
+    const fontSizeBase = finitePositive(obj.meta?.fontSize, defFontSize);
     const fontSize = fontSizeBase / presentationalScale;
     const textOrientationTransform = (x: number, y: number) =>
         scene?.orientation === "y-up"
