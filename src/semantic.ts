@@ -12,6 +12,7 @@ import {
   SVGSemanticObject,
   SVGSemanticPoint,
   SVGSemanticProjection,
+  SVGSemanticReplayComparison,
   SVGSemanticRing,
   SVGSemanticSegment,
 } from "./types";
@@ -367,4 +368,59 @@ export function projectSVGSemanticScene(scene: ResolvedScene): SVGSemanticProjec
 
 export function serializeSVGSemanticScene(scene: ResolvedScene): string {
   return JSON.stringify(projectSVGSemanticScene(scene));
+}
+
+type SVGSemanticReplayInput = SVGSemanticProjection | string;
+
+function canonicalizeReplayValue(value: unknown): unknown {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new Error("INVALID_SEMANTIC_REPLAY: non-finite number");
+    }
+    const normalized = Number(value.toFixed(NUMBER_PRECISION));
+    return Object.is(normalized, -0) ? 0 : normalized;
+  }
+  if (Array.isArray(value)) {
+    // Arrays carry semantic order (objectOrder, objects, children, topology).
+    return value.map((item) => canonicalizeReplayValue(item));
+  }
+  if (!value || typeof value !== "object") return value;
+
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(value as Record<string, unknown>).sort()) {
+    const item = (value as Record<string, unknown>)[key];
+    if (item !== undefined) result[key] = canonicalizeReplayValue(item);
+  }
+  return result;
+}
+
+function serializeReplayInput(input: SVGSemanticReplayInput): string {
+  if (typeof input === "string") {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(input);
+    } catch (error) {
+      throw new Error(`INVALID_SEMANTIC_REPLAY: expected JSON (${error instanceof Error ? error.message : String(error)})`);
+    }
+    return JSON.stringify(canonicalizeReplayValue(parsed));
+  }
+  return JSON.stringify(canonicalizeReplayValue(input));
+}
+
+/**
+ * Compare renderer semantic projections, not SVG presentation bytes.
+ * Object keys are canonicalized, finite numbers are normalized to the
+ * projection precision, and semantic array order is intentionally retained.
+ */
+export function compareSVGSemanticReplay(
+  expected: SVGSemanticReplayInput,
+  actual: SVGSemanticReplayInput,
+): SVGSemanticReplayComparison {
+  const expectedSnapshot = serializeReplayInput(expected);
+  const actualSnapshot = serializeReplayInput(actual);
+  return {
+    equal: expectedSnapshot === actualSnapshot,
+    expected: expectedSnapshot,
+    actual: actualSnapshot,
+  };
 }

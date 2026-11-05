@@ -1,10 +1,19 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { parseRelGeo, resolveGeometry } from "@relgeo/core";
 import type { ResolvedScene } from "@relgeo/geometry";
 import {
+  compareSVGSemanticReplay,
   projectSVGSemanticScene,
   serializeSVGSemanticScene,
   SVG_SEMANTIC_TOLERANCE,
 } from "../index";
+
+function loadResolvedFixture(name: string) {
+  const filePath = fileURLToPath(new URL(`../../../fixtures/reference/${name}`, import.meta.url));
+  return resolveGeometry(parseRelGeo(readFileSync(filePath, "utf8")));
+}
 
 describe("SVG semantic projection", () => {
   it("exposes stable identity, order, primitive geometry, and path topology", () => {
@@ -19,6 +28,7 @@ describe("SVG semantic projection", () => {
           y1: 0,
           x2: 10.12345678901234,
           y2: 20,
+          transform: [{ type: "translate", x: 3, y: 4 }],
         },
         outline: {
           id: "outline",
@@ -52,6 +62,7 @@ describe("SVG semantic projection", () => {
     expect(projection.objects.find((object) => object.id === "line")).toMatchObject({
       id: "line",
       kind: "line",
+      transform: [{ type: "translate", x: 3, y: 4 }],
       geometry: {
         endpoints: {
           from: { x: 0, y: 0 },
@@ -76,6 +87,46 @@ describe("SVG semantic projection", () => {
     };
 
     expect(serializeSVGSemanticScene(scene)).toBe(serializeSVGSemanticScene(scene));
+  });
+
+  it("compares canonical replay fields while preserving semantic array order", () => {
+    const projection = projectSVGSemanticScene({
+      unit: "px",
+      objects: {
+        first: { id: "first", type: "point", x: 1, y: 2 },
+        second: { id: "second", type: "line", x1: 1, y1: 2, x2: 4, y2: 5 },
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 4, height: 5 },
+    });
+
+    const reorderedKeys = JSON.parse(JSON.stringify(projection)) as typeof projection;
+    reorderedKeys.bbox.x = 0.0000000000004;
+    reorderedKeys.objects = [...reorderedKeys.objects].reverse();
+    const keyOrderOnly = {
+      ...reorderedKeys,
+      objects: [...reorderedKeys.objects].reverse(),
+    };
+
+    expect(compareSVGSemanticReplay(projection, JSON.stringify(keyOrderOnly)).equal).toBe(true);
+    expect(compareSVGSemanticReplay(projection, reorderedKeys).equal).toBe(false);
+    expect(compareSVGSemanticReplay(projection, {
+      ...projection,
+      schemaVersion: 2 as typeof projection.schemaVersion,
+    }).equal).toBe(false);
+  });
+
+  it("replays semantic projections across canonical fixture resolutions", () => {
+    for (const fixture of [
+      "10-v05-relational-baseline.yaml",
+      "15-v05-boolean-intersection-candidate.yaml",
+      "16-v05-evaluator-units-candidate.yaml",
+    ]) {
+      const first = serializeSVGSemanticScene(loadResolvedFixture(fixture));
+      const second = serializeSVGSemanticScene(loadResolvedFixture(fixture));
+      expect(compareSVGSemanticReplay(first, second).equal, fixture).toBe(true);
+    }
   });
 
   it("canonicalizes object order and preserves dimension/annotation placement semantics", () => {
@@ -182,6 +233,30 @@ describe("SVG semantic projection", () => {
         },
       },
     });
+  });
+
+  it("keeps semantic geometry stable when presentation metadata changes", () => {
+    const base: ResolvedScene = {
+      unit: "mm",
+      objects: {
+        plate: {
+          id: "plate",
+          type: "rect",
+          x: 2,
+          y: 3,
+          width: 40,
+          height: 20,
+          meta: { stroke: "#111", fontFamily: "sans-serif" },
+        },
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 2, y: 3, width: 40, height: 20 },
+    };
+    const styled = structuredClone(base);
+    styled.objects.plate.meta = { stroke: "<script>", fill: "\"><text>", fontSize: "NaN" };
+
+    expect(projectSVGSemanticScene(styled)).toEqual(projectSVGSemanticScene(base));
   });
 
   it("derives closed rings for point-authored paths without resolved segments", () => {

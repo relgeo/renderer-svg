@@ -38,6 +38,44 @@ function finitePositive(value: unknown, fallback: number): number {
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function finiteNumber(value: unknown, fallback: number): number {
+    const parsed = typeof value === "number" ? value : parseFloat(String(value));
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function renderTextLines(
+    text: unknown,
+    openingAttributes: string,
+    lineHeight: number,
+): string {
+    const lines = String(text ?? "").split("\n");
+    if (lines.length <= 1) {
+        return `<text ${openingAttributes}>${escapeXml(lines[0])}</text>`;
+    }
+    const xAttribute = openingAttributes.match(/\bx="([^"]+)"/)?.[1];
+    const tspans = lines
+        .map((line, index) => `<tspan${xAttribute === undefined ? "" : ` x="${xAttribute}"`} dy="${index === 0 ? "0" : `${lineHeight}em`}">${escapeXml(line)}</tspan>`)
+        .join("");
+    return `<text ${openingAttributes}>${tspans}</text>`;
+}
+
+function getObjectBounds(obj: any): { x: number; y: number; width: number; height: number } | undefined {
+    if (!obj) return undefined;
+    if (obj.type === "rect") return { x: obj.x, y: obj.y, width: obj.width, height: obj.height };
+    if (obj.type === "circle") return { x: obj.cx - obj.radius, y: obj.cy - obj.radius, width: obj.radius * 2, height: obj.radius * 2 };
+    if (obj.type === "ellipse") return { x: obj.cx - obj.rx, y: obj.cy - obj.ry, width: obj.rx * 2, height: obj.ry * 2 };
+    if (obj.type === "line") {
+        return {
+            x: Math.min(obj.x1, obj.x2),
+            y: Math.min(obj.y1, obj.y2),
+            width: Math.abs(obj.x2 - obj.x1),
+            height: Math.abs(obj.y2 - obj.y1),
+        };
+    }
+    if (obj.type === "point") return { x: obj.x, y: obj.y, width: 0, height: 0 };
+    return undefined;
+}
+
 export function renderRect(obj: ResolvedRect, commonAttr: string): string {
     return `<rect x="${obj.x}" y="${obj.y}" width="${obj.width}" height="${obj.height}" ${commonAttr} />`;
 }
@@ -104,18 +142,11 @@ export function renderText(obj: ResolvedText, commonAttr: string, scene?: any): 
     if (!/\sfont-family=/.test(attrs)) attrs += ` font-family="sans-serif"`;
     const lines = String(obj.content ?? "").split("\n");
     const lineHeight = finitePositive(obj.meta?.lineHeight ?? 1, 1);
-    const lineStep = (() => {
-        return `${lineHeight}em`;
-    })();
 
     if (lines.length <= 1) {
-        return `<text x="${obj.x}" y="${obj.y}" dominant-baseline="hanging" ${attrs}>${escapeXml(obj.content)}</text>`;
+        return renderTextLines(obj.content, `x="${obj.x}" y="${obj.y}" dominant-baseline="hanging" ${attrs}`, lineHeight);
     }
-
-    const tspans = lines
-        .map((line, idx) => `<tspan x="${obj.x}" dy="${idx === 0 ? "0" : lineStep}">${escapeXml(line)}</tspan>`)
-        .join("");
-    return `<text x="${obj.x}" y="${obj.y}" dominant-baseline="hanging" ${attrs}>${tspans}</text>`;
+    return renderTextLines(obj.content, `x="${obj.x}" y="${obj.y}" dominant-baseline="hanging" ${attrs}`, lineHeight);
 }
 
 export function renderPath(obj: ResolvedPath, commonAttr: string): string {
@@ -297,7 +328,7 @@ export function renderDimension(obj: any, commonAttr: string, scene: any): strin
     if (obj.kind === "linear" && obj.from && obj.to) {
         const from = obj.from;
         const to = obj.to;
-        const offsetBase = obj.offset ?? 15;
+        const offsetBase = finiteNumber(obj.offset, 15);
         const offset = offsetBase / presentationalScale;
 
         const dx = to.x - from.x;
@@ -363,7 +394,11 @@ export function renderDimension(obj: any, commonAttr: string, scene: any): strin
                 theta += 180;
             }
 
-            html += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" transform="rotate(${theta}, ${cx}, ${cy}) translate(0, -${arrL})" ${textStyle}>${escapeXml(obj.text)}</text>`;
+            html += renderTextLines(
+                obj.text,
+                `x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" transform="rotate(${theta}, ${cx}, ${cy}) translate(0, -${arrL})" ${textStyle}`,
+                finitePositive(obj.meta?.lineHeight ?? 1.2, 1.2),
+            );
         }
     } else if ((obj.kind === "radius" || obj.kind === "diameter") && obj.target && scene?.objects?.[obj.target]) {
         const targetObj = scene.objects[obj.target];
@@ -393,7 +428,7 @@ export function renderDimension(obj: any, commonAttr: string, scene: any): strin
             const sx = ex + arrL * 2.5;
             const sy = ey;
             html += `<path d="M ${px} ${py} L ${ex} ${ey} L ${sx} ${sy}" fill="none"${ve} />`;
-            html += `<text x="${sx + arrL * 0.3}" y="${sy}" dominant-baseline="central" ${textStyle}>${escapeXml(obj.text)}</text>`;
+            html += renderTextLines(obj.text, `x="${sx + arrL * 0.3}" y="${sy}" dominant-baseline="central" ${textStyle}`, finitePositive(obj.meta?.lineHeight ?? 1.2, 1.2));
         } else {
             const p2x = cx - r * ux;
             const p2y = cy - r * uy;
@@ -416,7 +451,7 @@ export function renderDimension(obj: any, commonAttr: string, scene: any): strin
             const sx = ex + arrL * 2.5;
             const sy = ey;
             html += `<path d="M ${px} ${py} L ${ex} ${ey} L ${sx} ${sy}" fill="none"${ve} />`;
-            html += `<text x="${sx + arrL * 0.3}" y="${sy}" dominant-baseline="central" ${textStyle}>${escapeXml(obj.text)}</text>`;
+            html += renderTextLines(obj.text, `x="${sx + arrL * 0.3}" y="${sy}" dominant-baseline="central" ${textStyle}`, finitePositive(obj.meta?.lineHeight ?? 1.2, 1.2));
         }
     } else if (obj.kind === "angle" && obj.between && obj.between.length === 2 && scene?.objects?.[obj.between[0]]) {
         const line1 = scene.objects[obj.between[0]];
@@ -452,7 +487,7 @@ export function renderDimension(obj: any, commonAttr: string, scene: any): strin
         const midA = a1 + sweep / 2;
         const tx = ix + (R + arrL * 1.5) * Math.cos(midA);
         const ty = iy + (R + arrL * 1.5) * Math.sin(midA);
-        html += `<text x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="central" ${textStyle}>${escapeXml(obj.text)}</text>`;
+        html += renderTextLines(obj.text, `x="${tx}" y="${ty}" text-anchor="middle" dominant-baseline="central" ${textStyle}`, finitePositive(obj.meta?.lineHeight ?? 1.2, 1.2));
     }
     html += "</g>";
     return html;
@@ -476,6 +511,7 @@ export function renderAnnotation(obj: any, commonAttr: string, scene: any): stri
     const defFontSize = Math.max(scaleRef * 0.04, 1);
     const fontSizeBase = finitePositive(obj.meta?.fontSize, defFontSize);
     const fontSize = fontSizeBase / presentationalScale;
+    const lineHeight = finitePositive(obj.meta?.lineHeight ?? 1.2, 1.2);
     const textOrientationTransform = (x: number, y: number) =>
         scene?.orientation === "y-up"
             ? ` transform="translate(${x} ${y}) scale(1 -1) translate(${-x} ${-y})"`
@@ -515,11 +551,27 @@ export function renderAnnotation(obj: any, commonAttr: string, scene: any): stri
         html += `<line x1="${to.x}" y1="${to.y}" x2="${accentEndX}" y2="${to.y}"${ve} />`;
         html += `<text${textOrientationTransform(textX, to.y)} x="${textX}" y="${to.y}" dominant-baseline="hanging" font-size="${fontSize}px" font-family="${fontFam}" fill="${fill}">`;
         lines.forEach((line: string, idx: number) => {
-            html += `<tspan x="${textX}" dy="${idx === 0 ? 0 : '1.2em'}">${escapeXml(line)}</tspan>`;
+            html += `<tspan x="${textX}" dy="${idx === 0 ? 0 : `${lineHeight}em`}">${escapeXml(line)}</tspan>`;
         });
         html += `</text>`;
     } else {
-        const place = obj.place || null;
+        let place = obj.place || null;
+        if (!place && obj.target && scene?.objects?.[obj.target]) {
+            const targetBounds = getObjectBounds(scene.objects[obj.target]);
+            if (targetBounds) {
+                const lines = String(obj.text ?? "").split("\n");
+                const longestLine = lines.reduce((max, line) => Math.max(max, line.length), 0);
+                const width = longestLine * fontSize * 0.6;
+                const height = lines.length * fontSize * lineHeight;
+                const gap = Math.max(fontSize * 0.5, 5) / presentationalScale;
+                place = {
+                    x: targetBounds.x + targetBounds.width + gap,
+                    y: targetBounds.y + (targetBounds.height - height) / 2,
+                    width,
+                    height,
+                };
+            }
+        }
         if (place) {
             const x = place.x;
             const y = place.y;
@@ -529,7 +581,7 @@ export function renderAnnotation(obj: any, commonAttr: string, scene: any): stri
             
             html += `<text${textOrientationTransform(x, y)} x="${x}" y="${y}" dominant-baseline="hanging" font-size="${fontSize}px" font-family="${fontFam}" fill="${fill}">`;
             lines.forEach((line: string, idx: number) => {
-                html += `<tspan x="${x}" dy="${idx === 0 ? 0 : '1.2em'}">${escapeXml(line)}</tspan>`;
+                html += `<tspan x="${x}" dy="${idx === 0 ? 0 : `${lineHeight}em`}">${escapeXml(line)}</tspan>`;
             });
             html += `</text>`;
         }

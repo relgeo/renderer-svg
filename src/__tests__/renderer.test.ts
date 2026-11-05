@@ -70,6 +70,40 @@ describe("renderer", () => {
     expect(svg).toContain('viewBox="0 0 80 40"');
   });
 
+  it("should keep default and physical sizing contexts stable without mutating semantic geometry", () => {
+    const scene: ResolvedScene = {
+      unit: "mm",
+      padding: 5,
+      objects: {
+        plate: {
+          id: "plate",
+          type: "rect",
+          x: 10,
+          y: 20,
+          width: 40,
+          height: 30,
+          meta: { role: "final" },
+        },
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 10, y: 20, width: 40, height: 30 },
+    };
+    const before = JSON.stringify(scene);
+
+    const defaultSvg = renderToSVG(scene);
+    expect(defaultSvg).toContain('viewBox="5 15 50 40"');
+    expect(defaultSvg).toContain('width="100%"');
+    expect(defaultSvg).not.toContain('height="40mm"');
+    expect(defaultSvg).toContain('preserveAspectRatio="xMidYMid meet"');
+
+    const physicalSvg = renderToSVG(scene, { physicalMode: true });
+    expect(physicalSvg).toContain('viewBox="5 15 50 40"');
+    expect(physicalSvg).toContain('width="50mm" height="40mm"');
+    expect(physicalSvg).toContain('preserveAspectRatio="xMidYMid meet"');
+    expect(JSON.stringify(scene)).toBe(before);
+  });
+
   it("should render target-only annotation via resolved fallback placement", () => {
     const scene: ResolvedScene = {
       unit: "px",
@@ -99,6 +133,56 @@ describe("renderer", () => {
     const svg = renderToSVG(scene);
     expect(svg).toContain('dominant-baseline="hanging"');
     expect(svg).toContain('>M6 clearance</tspan>');
+  });
+
+  it("should retain a stable target-only annotation fallback at the renderer boundary", () => {
+    const scene: any = {
+      unit: "px",
+      objects: {
+        target: { id: "target", type: "rect", x: 10, y: 20, width: 30, height: 10, meta: {} },
+        note: { id: "note", type: "annotation", target: "target", text: "Near target", meta: { role: "annotation" } },
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 10, y: 20, width: 30, height: 10 },
+    };
+
+    const svg = renderToSVG(scene, { padding: 0 });
+    expect(svg).toContain('>Near target</tspan>');
+    expect(svg).toContain('x="45"');
+  });
+
+  it("should preserve multiline dimension and annotation order with bounded line-height", () => {
+    const scene: any = {
+      unit: "px",
+      objects: {
+        dim: {
+          id: "dim",
+          type: "dimension",
+          kind: "linear",
+          from: { x: 0, y: 0 },
+          to: { x: 50, y: 0 },
+          text: "measure\nsecondary",
+          meta: { role: "dimension", lineHeight: 1.4 },
+        },
+        note: {
+          id: "note",
+          type: "annotation",
+          place: { x: 10, y: 20 },
+          text: "first\nsecond",
+          meta: { role: "annotation", lineHeight: 1.6 },
+        },
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 50, height: 20 },
+    };
+
+    const svg = renderToSVG(scene, { padding: 0 });
+    expect(svg).toContain('<tspan x="25" dy="0">measure</tspan>');
+    expect(svg).toContain('<tspan x="25" dy="1.4em">secondary</tspan>');
+    expect(svg).toContain('<tspan x="10" dy="0">first</tspan>');
+    expect(svg).toContain('<tspan x="10" dy="1.6em">second</tspan>');
   });
 
   it("should use effective stroke color for default annotation arrowheads", () => {

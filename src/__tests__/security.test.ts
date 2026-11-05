@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseRelGeo, resolveGeometry } from "@relgeo/core";
 import { getCommonAttributes } from "../utils";
-import { renderAnnotation, renderDimension, renderText } from "../primitives";
+import { renderAnnotation, renderDimension, renderPoint, renderText } from "../primitives";
 import { renderToSVG } from "../index";
 
 describe("SVG Security", () => {
@@ -45,6 +45,42 @@ describe("SVG Security", () => {
     expect(rendered).toContain('font-size="12"');
     expect(rendered).toContain('font-family="sans-serif"');
     expect(rendered).toContain('dominant-baseline="hanging"');
+  });
+
+  it("should use finite presentation fallbacks instead of serializing invalid numbers", () => {
+    const common = getCommonAttributes("invalid", {
+      stroke: "#111",
+      opacity: "not-a-number",
+      strokeWidth: "Infinity",
+      fontSize: "NaN",
+    });
+    const text = renderText(
+      { x: 0, y: 0, content: "safe", meta: { lineHeight: "NaN" } } as any,
+      common,
+    );
+    const point = renderPoint(
+      { x: 0, y: 0 } as any,
+      common,
+      { pointSize: "Infinity" },
+      { bbox: { x: 0, y: 0, width: 10, height: 10 } },
+    );
+    const dimension = renderDimension(
+      {
+        kind: "linear",
+        from: { x: 0, y: 0 },
+        to: { x: 20, y: 0 },
+        offset: "NaN",
+        text: "safe",
+        meta: { arrowSize: "Infinity", fontSize: "NaN" },
+      },
+      common,
+      { bbox: { x: 0, y: 0, width: 20, height: 20 } },
+    );
+
+    for (const output of [common, text, point, dimension]) {
+      expect(output).not.toMatch(/(?:NaN|Infinity)/);
+    }
+    expect(text).toContain('font-size="12"');
   });
 
   it("should escape dimension presentation attributes and label text", () => {
@@ -95,6 +131,7 @@ describe("SVG Security", () => {
     const svg = renderToSVG(scene);
 
     expect(svg).not.toContain("<script>");
+    expect(svg).not.toMatch(/(?:onload=|onerror=|<foreignObject)/i);
     expect(svg).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
     expect(svg).toContain("&lt;script&gt;alert(4)&lt;/script&gt;");
     expect(svg).toContain("&lt;script&gt;alert(2)&lt;/script&gt;");

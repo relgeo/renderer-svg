@@ -102,3 +102,9 @@ export interface SVGSemanticProjection {
   objectOrder: string[];
   objects: SVGSemanticObject[];
 }
+
+export interface SVGSemanticReplayComparison {
+  equal: boolean;
+  expected: string;
+  actual: string;
+}

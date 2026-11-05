@@ -87,7 +87,8 @@ export function getCommonAttributes(id: string, meta: any, options: RenderOption
 
     const stroke = escapeXml(strokeColor);
     const fill = escapeXml(fillMode);
-    const opacity = escapeXml(meta.opacity ?? 1);
+    const parsedOpacity = parseFloat(String(meta.opacity ?? 1));
+    const opacity = escapeXml(Number.isFinite(parsedOpacity) ? parsedOpacity : 1);
     const dash = dashStyle ? `stroke-dasharray="${escapeXml(dashStyle)}"` : "";
 
     let fontAttrs = "";
@@ -129,6 +130,10 @@ export function getCommonAttributes(id: string, meta: any, options: RenderOption
     }
 
     let resolvedWidth = explicitStrokeWidth;
+    if (resolvedWidth !== undefined) {
+      const parsedWidth = parseFloat(String(resolvedWidth));
+      resolvedWidth = Number.isFinite(parsedWidth) && parsedWidth >= 0 ? parsedWidth : undefined;
+    }
     if (isHairline) {
       resolvedWidth = hairlineWidth;
     } else if (resolvedWidth === undefined) {

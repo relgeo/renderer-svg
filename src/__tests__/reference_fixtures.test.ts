@@ -12,8 +12,12 @@ function loadResolvedFixture(name: string) {
 describe("reference fixtures", () => {
   it("renders mixed presentational sheet fixture from shared reference folder", () => {
     const scene = loadResolvedFixture("02-mixed-presentational-sheet.yaml");
+    const before = JSON.stringify(scene);
     const svg = renderToSVG(scene, { sheetId: "drawing1" });
 
+    expect(svg).toContain('viewBox="0 0 297 210"');
+    expect(svg).toContain('width="297mm" height="210mm"');
+    expect(svg).toContain('preserveAspectRatio="xMidYMid meet"');
     expect(svg).toContain('SHEET: drawing1');
     expect(svg).toContain('>FACE A</tspan>');
     expect(svg).toContain('>CHECK</tspan>');
@@ -22,18 +26,23 @@ describe("reference fixtures", () => {
     expect(svg).toContain('>BREAK</tspan>');
     expect(svg).toContain('transform="rotate(');
     expect(svg).toContain('>120mm</text>');
+    expect(JSON.stringify(scene)).toBe(before);
   });
 
   it("renders sheet title block fixture from shared reference folder", () => {
     const scene = loadResolvedFixture("03-sheet-title-block.yaml");
+    const before = JSON.stringify(scene);
     const svg = renderToSVG(scene, { sheetId: "drawing1" });
 
+    expect(svg).toContain('viewBox="0 0 297 210"');
+    expect(svg).toContain('transform="translate(20, 30) scale(0.5) translate(0, 0)"');
     expect(svg).toContain("SHEET: Assembly Sheet");
     expect(svg).toContain("RELGEO: v0.5");
     expect(svg).toContain("DATE: 2026-06-23");
     expect(svg).toContain("SIZE: A4");
     expect(svg).toContain("DOC VER: 1.2");
     expect(svg).toContain("Viewport: front");
+    expect(JSON.stringify(scene)).toBe(before);
   });
 
   it("renders grouped sheet rooting fixture from shared reference folder", () => {
@@ -90,9 +99,13 @@ describe("reference fixtures", () => {
 
   it("renders multi-sheet title block fixture from shared reference folder", () => {
     const scene = loadResolvedFixture("09-multi-sheet-title-block.yaml");
+    const before = JSON.stringify(scene);
     const sheetA = renderToSVG(scene, { sheetId: "sheetA" });
     const sheetB = renderToSVG(scene, { sheetId: "sheetB" });
 
+    expect(sheetA).toContain('viewBox="0 0 297 210"');
+    expect(sheetB).toContain('viewBox="0 0 297 210"');
+    expect(sheetA).toContain('transform="translate(20, 30) scale(1) translate(0, 0)"');
     expect(sheetA).toContain("SHEET: Bracket Assembly Sheet");
     expect(sheetA).toContain("DATE: 2026-07-13");
     expect(sheetA).toContain("DOC VER: BRKT-2026.07");
@@ -105,5 +118,6 @@ describe("reference fixtures", () => {
     expect(sheetB).toContain("SIZE: A4 Detail");
     expect(sheetB).toContain("Viewport: detail");
     expect(sheetB).toContain('transform="translate(40, 45) scale(2) translate(0, 0)"');
+    expect(JSON.stringify(scene)).toBe(before);
   });
 });
