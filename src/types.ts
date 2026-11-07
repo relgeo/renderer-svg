@@ -37,6 +37,29 @@ export class SVGRenderError extends Error {
   }
 }
 
+export type SVGSemanticErrorCode =
+  | "INVALID_SEMANTIC_PROJECTION"
+  | "INVALID_SEMANTIC_REPLAY";
+
+/**
+ * Stable public error for the renderer semantic boundary.
+ *
+ * Semantic projection/replay is consumed by parity tooling, so malformed
+ * resolved scenes and snapshots must not leak an engine-specific Error. The
+ * optional path identifies the semantic field that failed validation.
+ */
+export class SVGSemanticError extends Error {
+  readonly code: SVGSemanticErrorCode;
+  readonly path?: string;
+
+  constructor(code: SVGSemanticErrorCode, message: string, path?: string) {
+    super(`${code}: ${message}`);
+    this.name = "SVGSemanticError";
+    this.code = code;
+    this.path = path;
+  }
+}
+
 export interface SVGSemanticPoint {
   x: number;
   y: number;
@@ -79,10 +102,48 @@ export interface SVGSemanticBoundingBox {
 export interface SVGSemanticObject {
   id: string;
   kind: ResolvedObject["type"];
+  /** Bounded language-level presentation semantics; raw paint/style is excluded. */
+  presentation?: {
+    role: string;
+    intent?: string;
+    label?: string;
+    visible?: boolean;
+    metaPreset?: string;
+  };
+  /** Bounded business metadata; renderer paint/style fields are excluded. */
+  metadata?: Record<string, unknown>;
   children?: string[];
   references?: string[];
   transform?: ResolvedTransform;
   geometry: SVGSemanticGeometry;
+}
+
+export interface SVGSemanticView {
+  id: string;
+  target: string;
+  scale: string | number;
+  scaleFactor: number;
+  bbox: SVGSemanticBoundingBox;
+  objectOrder: string[];
+  objects: SVGSemanticObject[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface SVGSemanticSheetView {
+  use: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface SVGSemanticSheet {
+  id: string;
+  size: string | [number, number];
+  width: number;
+  height: number;
+  views: SVGSemanticSheetView[];
+  metadata?: Record<string, unknown>;
 }
 
 export const SVG_SEMANTIC_PROJECTION_SCHEMA = "relgeo.svg-semantic" as const;
@@ -101,6 +162,11 @@ export interface SVGSemanticProjection {
   bbox: SVGSemanticBoundingBox;
   objectOrder: string[];
   objects: SVGSemanticObject[];
+  metadata?: Record<string, unknown>;
+  viewOrder: string[];
+  views: SVGSemanticView[];
+  sheetOrder: string[];
+  sheets: SVGSemanticSheet[];
 }
 
 export interface SVGSemanticReplayComparison {

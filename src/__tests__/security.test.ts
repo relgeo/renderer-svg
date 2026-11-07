@@ -137,4 +137,39 @@ describe("SVG Security", () => {
     expect(svg).toContain("&lt;script&gt;alert(2)&lt;/script&gt;");
     expect(svg).toContain("&lt;script&gt;alert(5)&lt;/script&gt;");
   });
+
+  it("keeps hostile group opacity and violation labels inside data boundaries", () => {
+    const scene: any = {
+      unit: "px",
+      objects: {
+        group: {
+          id: "group",
+          type: "group",
+          children: ["line"],
+          meta: { opacity: '"><script>alert(7)</script>' },
+        },
+        line: {
+          id: "line",
+          type: "line",
+          x1: 0,
+          y1: 0,
+          x2: 10,
+          y2: 0,
+          meta: {},
+        },
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 10, height: 1 },
+      violations: [{
+        type: '"><script>alert(8)</script>',
+        visualHelper: { x1: 0, y1: 0, x2: 1, y2: 1 },
+      }],
+    };
+
+    const svg = renderToSVG(scene);
+    expect(svg).not.toContain("<script>");
+    expect(svg).toContain('opacity="1"');
+    expect(svg).toContain("&quot;&gt;&lt;script&gt;alert(8)&lt;/script&gt;");
+  });
 });

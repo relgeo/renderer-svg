@@ -23,6 +23,13 @@ export function getMetadataAttributes(meta: any, obj?: ResolvedObject): string {
     return attrs.length > 0 ? ` ${attrs.join(" ")}` : "";
 }
 
+/** Keep group opacity on the numeric boundary too, so hostile strings cannot
+ * become raw SVG attributes while retaining the tolerant fallback. */
+export function getSafeOpacity(value: unknown): number {
+    const parsed = typeof value === "number" ? value : parseFloat(String(value ?? 1));
+    return Number.isFinite(parsed) ? parsed : 1;
+}
+
 export function getCommonAttributes(id: string, meta: any, options: RenderOptions = {}, objType?: string, scene?: any, obj?: ResolvedObject): string {
     let strokeColor = meta.stroke;
     let dashStyle = meta.dash;

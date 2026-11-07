@@ -1,7 +1,7 @@
 import { ResolvedScene, ResolvedObject, calculateBoundingBox, TECHNICAL_ROLES, TechnicalRole } from "@relgeo/geometry";
 import { Renderer, RenderOptions, SVGRenderError } from "./types";
 import { renderPrimitive } from "./primitives";
-import { getCommonAttributes, getMetadataAttributes, getTransformString, renderAnchors } from "./utils";
+import { getCommonAttributes, getMetadataAttributes, getSafeOpacity, getTransformString, renderAnchors } from "./utils";
 import { escapeXml } from "./escape";
 
 const ACTIVE_REL_GEO_VERSION = "0.5";
@@ -108,7 +108,7 @@ export class SVGRenderer implements Renderer<string> {
         if (v.visualHelper) {
           const { x1, y1, x2, y2 } = v.visualHelper;
           violationElements.push(`
-            <g class="violation-indicator violation-${v.type}" opacity="0.8">
+            <g class="violation-indicator violation-${escapeXml(v.type)}" opacity="0.8">
               <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="red" stroke-width="1.5" stroke-dasharray="4 2" vector-effect="non-scaling-stroke">
                 <animate attributeName="stroke-dashoffset" from="20" to="0" dur="2s" repeatCount="indefinite" />
               </line>
@@ -205,7 +205,7 @@ export class SVGRenderer implements Renderer<string> {
         })
         .join("\n    ");
       
-      const opacityAttr = meta.opacity !== undefined ? `opacity="${meta.opacity}"` : "";
+      const opacityAttr = meta.opacity !== undefined ? `opacity="${escapeXml(getSafeOpacity(meta.opacity))}"` : "";
       const transformAttr = obj.transform ? getTransformString(obj.transform) : "";
       const metadataAttrs = getMetadataAttributes(meta, obj);
 
@@ -305,9 +305,12 @@ export class SVGRenderer implements Renderer<string> {
       });
 
       const transformStr = `translate(${vPlacement.x}, ${vPlacement.y}) scale(${scale}) translate(${-viewOriginX}, ${-viewOriginY})`;
+      // Keep the diagnostic comment readable while preventing user-controlled
+      // view IDs from closing an XML comment or introducing markup.
+      const viewportComment = escapeXml(vPlacement.use).replace(/--/g, "- -");
 
       viewElements.push(`
-    <!-- Viewport: ${vPlacement.use} -->
+    <!-- Viewport: ${viewportComment} -->
     <g transform="${transformStr}">
       ${elements.join("\\n        ")}
     </g>

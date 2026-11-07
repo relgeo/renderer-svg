@@ -8,6 +8,7 @@ import {
   projectSVGSemanticScene,
   serializeSVGSemanticScene,
   SVG_SEMANTIC_TOLERANCE,
+  SVGSemanticError,
 } from "../index";
 
 function loadResolvedFixture(name: string) {
@@ -16,6 +17,67 @@ function loadResolvedFixture(name: string) {
 }
 
 describe("SVG semantic projection", () => {
+  it("exposes a stable structured error for invalid projection values", () => {
+    const scene = {
+      unit: "px" as const,
+      objects: {},
+      parameters: {},
+      values: {},
+      bbox: { x: Number.POSITIVE_INFINITY, y: 0, width: 10, height: 10 },
+    } as ResolvedScene;
+
+    try {
+      projectSVGSemanticScene(scene);
+      throw new Error("expected semantic projection to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SVGSemanticError);
+      expect(error).toMatchObject({
+        name: "SVGSemanticError",
+        code: "INVALID_SEMANTIC_PROJECTION",
+        path: "bbox.x",
+      });
+      expect((error as Error).message).toBe("INVALID_SEMANTIC_PROJECTION: non-finite number");
+    }
+  });
+
+  it("exposes a stable structured error for invalid replay input", () => {
+    try {
+      compareSVGSemanticReplay("{not-json", "{}");
+      throw new Error("expected semantic replay to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SVGSemanticError);
+      expect(error).toMatchObject({
+        name: "SVGSemanticError",
+        code: "INVALID_SEMANTIC_REPLAY",
+      });
+      expect((error as Error).message).toBe("INVALID_SEMANTIC_REPLAY: expected JSON input");
+    }
+  });
+
+  it("reports the semantic path for non-finite replay values", () => {
+    const projection = projectSVGSemanticScene({
+      unit: "px",
+      objects: {},
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 10, height: 10 },
+    });
+
+    try {
+      compareSVGSemanticReplay(projection, {
+        ...projection,
+        bbox: { ...projection.bbox, width: Number.NaN },
+      });
+      throw new Error("expected semantic replay to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SVGSemanticError);
+      expect(error).toMatchObject({
+        code: "INVALID_SEMANTIC_REPLAY",
+        path: "root.bbox.width",
+      });
+    }
+  });
+
   it("exposes stable identity, order, primitive geometry, and path topology", () => {
     const scene: ResolvedScene = {
       unit: "mm",
@@ -73,6 +135,98 @@ describe("SVG semantic projection", () => {
     expect(projection.objects.find((object) => object.id === "outline")?.geometry.rings).toHaveLength(1);
     expect(projection.objects.find((object) => object.id === "outline")?.geometry.holes).toHaveLength(1);
     expect(projection.objects.find((object) => object.id === "assembly")?.children).toEqual(["line", "outline"]);
+  });
+
+  it("projects document metadata, business metadata, views, and sheets without raw paint fields", () => {
+    const scene: ResolvedScene = {
+      unit: "mm",
+      meta: {
+        title: "Bracket Assembly",
+        author: "RelGeo",
+        version: "A-01",
+      },
+      objects: {
+        plate: {
+          id: "plate",
+          type: "rect",
+          x: 0,
+          y: 0,
+          width: 40,
+          height: 20,
+          meta: {
+            material: "aluminum",
+            thickness: 2,
+            process: "laser-cut",
+            partNo: "P-001",
+            description: "Main plate",
+            stroke: "<script>",
+          },
+        },
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 40, height: 20 },
+      views: {
+        front: {
+          id: "front",
+          target: "plate",
+          scale: "1:1",
+          scaleFactor: 1,
+          objects: {
+            plate: {
+              id: "plate",
+              type: "rect",
+              x: 0,
+              y: 0,
+              width: 40,
+              height: 20,
+            },
+          },
+          bbox: { x: 0, y: 0, width: 40, height: 20 },
+          meta: { title: "Front view" },
+        },
+      },
+      sheets: {
+        drawing1: {
+          id: "drawing1",
+          size: "A4",
+          width: 297,
+          height: 210,
+          views: [{ use: "front", x: 20, y: 20, width: 40, height: 20 }],
+          meta: { title: "Assembly sheet" },
+        },
+      },
+    };
+
+    const projection = projectSVGSemanticScene(scene);
+
+    expect(projection.metadata).toEqual({ title: "Bracket Assembly", author: "RelGeo", version: "A-01" });
+    expect(projection.objects[0].metadata).toEqual({
+      description: "Main plate",
+      material: "aluminum",
+      partNo: "P-001",
+      process: "laser-cut",
+      thickness: 2,
+    });
+    expect(JSON.stringify(projection.objects[0].metadata)).not.toContain("<script>");
+    expect(projection.viewOrder).toEqual(["front"]);
+    expect(projection.views[0]).toMatchObject({
+      id: "front",
+      target: "plate",
+      objectOrder: ["plate"],
+      metadata: { title: "Front view" },
+    });
+    expect(projection.sheetOrder).toEqual(["drawing1"]);
+    expect(projection.sheets[0]).toMatchObject({
+      id: "drawing1",
+      size: "A4",
+      metadata: { title: "Assembly sheet" },
+      views: [{ use: "front", x: 20, y: 20, width: 40, height: 20 }],
+    });
+
+    const reordered = structuredClone(scene);
+    reordered.meta = { version: "A-01", title: "Bracket Assembly", author: "RelGeo" };
+    expect(serializeSVGSemanticScene(reordered)).toBe(serializeSVGSemanticScene(scene));
   });
 
   it("serializes the same resolved scene deterministically", () => {
@@ -283,6 +437,52 @@ describe("SVG semantic projection", () => {
     styled.objects.plate.meta = { stroke: "<script>", fill: "\"><text>", fontSize: "NaN" };
 
     expect(projectSVGSemanticScene(styled)).toEqual(projectSVGSemanticScene(base));
+  });
+
+  it("projects bounded presentation semantics without projecting raw style", () => {
+    const scene: ResolvedScene = {
+      unit: "mm",
+      objects: {
+        datum: {
+          id: "datum",
+          type: "line",
+          x1: 0,
+          y1: 0,
+          x2: 10,
+          y2: 0,
+          metaPreset: "datumPreset",
+          meta: {
+            role: "centerline",
+            intent: "datum",
+            label: "A <main>",
+            visible: true,
+            stroke: "<script>",
+            fontFamily: '"><text>',
+          },
+        } as any,
+        note: {
+          id: "note",
+          type: "annotation",
+          text: "note",
+          place: { x: 2, y: 3 },
+        } as any,
+      },
+      parameters: {},
+      values: {},
+      bbox: { x: 0, y: 0, width: 10, height: 3 },
+    };
+
+    const projection = projectSVGSemanticScene(scene);
+    expect(projection.objects[0].presentation).toEqual({
+      role: "centerline",
+      intent: "datum",
+      label: "A <main>",
+      visible: true,
+      metaPreset: "datumPreset",
+    });
+    expect(projection.objects[1].presentation).toEqual({ role: "annotation" });
+    expect(JSON.stringify(projection)).not.toContain("<script>");
+    expect(JSON.stringify(projection)).not.toContain("fontFamily");
   });
 
   it("derives closed rings for point-authored paths without resolved segments", () => {

@@ -56,7 +56,9 @@ Semantic projection untuk parity:
 * `projectSVGSemanticScene(scene)` mengekspos schema `relgeo.svg-semantic`
   versi 1 dengan resolved object order yang eksplisit, identity/kind, endpoint, segment,
   ring/hole topology, dimension kind/measurements, resolved annotation
-  placement, dan geometry values yang dinormalisasi
+  placement, geometry values yang dinormalisasi, document/business metadata
+  bounded by the semantic contract, serta view/sheet order dan placement
+  records
 * `serializeSVGSemanticScene(scene)` memberi JSON deterministik untuk fixture
   dan consumer comparator
 * `compareSVGSemanticReplay(expected, actual)` membandingkan projection
@@ -74,6 +76,10 @@ Render errors:
 
 * `SVGRenderError` exposes stable codes for invalid options, missing sheets or
   views, missing composition targets, and unsupported resolved shapes
+* `SVGSemanticError` exposes `INVALID_SEMANTIC_PROJECTION` and
+  `INVALID_SEMANTIC_REPLAY` for malformed semantic inputs; its optional `path`
+  identifies the failing projection/replay field and raw engine errors do not
+  cross this public boundary
 * requesting an unknown `sheetId` or referencing a missing sheet view fails
   explicitly; it does not fall back to model rendering or silently skip the
   view

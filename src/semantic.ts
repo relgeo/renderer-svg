@@ -14,17 +14,51 @@ import {
   SVGSemanticProjection,
   SVGSemanticReplayComparison,
   SVGSemanticRing,
+  SVGSemanticSheet,
+  SVGSemanticSheetView,
   SVGSemanticSegment,
+  SVGSemanticView,
+  SVGSemanticError,
 } from "./types";
 
 const NUMBER_PRECISION = 12;
+const OBJECT_METADATA_KEYS = ["material", "thickness", "process", "partNo", "description"] as const;
 
 function normalizeNumber(value: number, path: string): number {
   if (!Number.isFinite(value)) {
-    throw new Error(`INVALID_SEMANTIC_PROJECTION: non-finite number at ${path}`);
+    throw new SVGSemanticError("INVALID_SEMANTIC_PROJECTION", "non-finite number", path);
   }
   const normalized = Number(value.toFixed(NUMBER_PRECISION));
   return Object.is(normalized, -0) ? 0 : normalized;
+}
+
+function canonicalizeMetadataValue(value: unknown, path: string): unknown {
+  if (typeof value === "number") return normalizeNumber(value, path);
+  if (Array.isArray(value)) {
+    return value.map((item, index) => canonicalizeMetadataValue(item, `${path}[${index}]`));
+  }
+  if (!value || typeof value !== "object") return value;
+  const record = value as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
+  for (const key of Object.keys(record).sort()) {
+    if (record[key] !== undefined) result[key] = canonicalizeMetadataValue(record[key], `${path}.${key}`);
+  }
+  return result;
+}
+
+function canonicalRecord(value: unknown, path: string): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return canonicalizeMetadataValue(value, path) as Record<string, unknown>;
+}
+
+function boundedObjectMetadata(value: unknown, path: string): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  const selected: Record<string, unknown> = {};
+  for (const key of OBJECT_METADATA_KEYS) {
+    if (raw[key] !== undefined) selected[key] = raw[key];
+  }
+  return Object.keys(selected).length > 0 ? canonicalRecord(selected, path) : undefined;
 }
 
 function point(x: number, y: number, path: string): SVGSemanticPoint {
@@ -187,16 +221,39 @@ function projectTransform(transform: any, path: string): NonNullable<ResolvedObj
         origin: point(transform.origin.x, transform.origin.y, `${path}.origin`),
       };
     default:
-      throw new Error(`INVALID_SEMANTIC_PROJECTION: unsupported transform at ${path}`);
+      throw new SVGSemanticError("INVALID_SEMANTIC_PROJECTION", "unsupported transform", path);
   }
 }
 
 function projectObject(obj: ResolvedObject, path: string): SVGSemanticObject {
   const raw = obj as any;
+  const rawMeta = raw.meta && typeof raw.meta === "object" ? raw.meta : {};
+  const metadata = boundedObjectMetadata(rawMeta, `${path}.metadata`);
+  const role = typeof rawMeta.role === "string"
+    ? rawMeta.role
+    : obj.type === "dimension"
+      ? "dimension"
+      : obj.type === "annotation"
+        ? "annotation"
+        : "final";
   const result: SVGSemanticObject = {
     id: obj.id,
     kind: obj.type,
+    presentation: {
+      role,
+      ...(typeof rawMeta.intent === "string" ? { intent: rawMeta.intent } : {}),
+      ...(rawMeta.label === undefined ? {} : { label: String(rawMeta.label) }),
+      ...(typeof rawMeta.visible === "boolean" ? { visible: rawMeta.visible } : {}),
+      ...(
+        typeof raw.metaPreset === "string"
+          ? { metaPreset: raw.metaPreset }
+          : typeof raw.style === "string"
+            ? { metaPreset: raw.style }
+            : {}
+      ),
+    },
     geometry: {},
+    ...(metadata === undefined ? {} : { metadata }),
   };
 
   if (Array.isArray(raw.children)) result.children = [...raw.children];
@@ -341,11 +398,60 @@ function projectObject(obj: ResolvedObject, path: string): SVGSemanticObject {
   return result;
 }
 
+function projectView(view: any, path: string): SVGSemanticView {
+  const objectOrder = Object.keys(view.objects ?? {});
+  return {
+    id: String(view.id),
+    target: String(view.target),
+    scale: view.scale,
+    scaleFactor: normalizeNumber(view.scaleFactor, `${path}.scaleFactor`),
+    bbox: {
+      x: normalizeNumber(view.bbox.x, `${path}.bbox.x`),
+      y: normalizeNumber(view.bbox.y, `${path}.bbox.y`),
+      width: normalizeNumber(view.bbox.width, `${path}.bbox.width`),
+      height: normalizeNumber(view.bbox.height, `${path}.bbox.height`),
+    },
+    objectOrder: [...objectOrder],
+    objects: objectOrder.map((id) => projectObject(view.objects[id], `${path}.objects.${id}`)),
+    ...(view.meta === undefined ? {} : { metadata: canonicalRecord(view.meta, `${path}.metadata`) }),
+  };
+}
+
+function projectSheetView(view: any, path: string): SVGSemanticSheetView {
+  return {
+    use: String(view.use),
+    x: normalizeNumber(view.x, `${path}.x`),
+    y: normalizeNumber(view.y, `${path}.y`),
+    width: normalizeNumber(view.width, `${path}.width`),
+    height: normalizeNumber(view.height, `${path}.height`),
+  };
+}
+
+function projectSheet(sheet: any, path: string): SVGSemanticSheet {
+  const views = Array.isArray(sheet.views) ? sheet.views : [];
+  const size = Array.isArray(sheet.size)
+    ? [
+      normalizeNumber(sheet.size[0], `${path}.size[0]`),
+      normalizeNumber(sheet.size[1], `${path}.size[1]`),
+    ] as [number, number]
+    : String(sheet.size);
+  return {
+    id: String(sheet.id),
+    size,
+    width: normalizeNumber(sheet.width, `${path}.width`),
+    height: normalizeNumber(sheet.height, `${path}.height`),
+    views: views.map((view: any, index: number) => projectSheetView(view, `${path}.views[${index}]`)),
+    ...(sheet.meta === undefined ? {} : { metadata: canonicalRecord(sheet.meta, `${path}.metadata`) }),
+  };
+}
+
 export function projectSVGSemanticScene(scene: ResolvedScene): SVGSemanticProjection {
   // Resolved object order is semantic: it is the order supplied by the core
   // resolver and used by the renderer. Canonicalization must not silently
   // reorder scene objects; replay comparison should detect that change.
   const objectOrder = Object.keys(scene.objects ?? {});
+  const viewOrder = Object.keys(scene.views ?? {});
+  const sheetOrder = Object.keys(scene.sheets ?? {});
   const bbox = scene.bbox;
   return {
     schema: SVG_SEMANTIC_PROJECTION_SCHEMA,
@@ -363,6 +469,11 @@ export function projectSVGSemanticScene(scene: ResolvedScene): SVGSemanticProjec
     },
     objectOrder: [...objectOrder],
     objects: objectOrder.map((id) => projectObject(scene.objects[id], `objects.${id}`)),
+    ...(scene.meta === undefined ? {} : { metadata: canonicalRecord(scene.meta, "metadata") }),
+    viewOrder: [...viewOrder],
+    views: viewOrder.map((id) => projectView(scene.views![id], `views.${id}`)),
+    sheetOrder: [...sheetOrder],
+    sheets: sheetOrder.map((id) => projectSheet(scene.sheets![id], `sheets.${id}`)),
   };
 }
 
@@ -372,24 +483,24 @@ export function serializeSVGSemanticScene(scene: ResolvedScene): string {
 
 type SVGSemanticReplayInput = SVGSemanticProjection | string;
 
-function canonicalizeReplayValue(value: unknown): unknown {
+function canonicalizeReplayValue(value: unknown, path = "root"): unknown {
   if (typeof value === "number") {
     if (!Number.isFinite(value)) {
-      throw new Error("INVALID_SEMANTIC_REPLAY: non-finite number");
+      throw new SVGSemanticError("INVALID_SEMANTIC_REPLAY", "non-finite number", path);
     }
     const normalized = Number(value.toFixed(NUMBER_PRECISION));
     return Object.is(normalized, -0) ? 0 : normalized;
   }
   if (Array.isArray(value)) {
     // Arrays carry semantic order (objectOrder, objects, children, topology).
-    return value.map((item) => canonicalizeReplayValue(item));
+    return value.map((item, index) => canonicalizeReplayValue(item, `${path}[${index}]`));
   }
   if (!value || typeof value !== "object") return value;
 
   const result: Record<string, unknown> = {};
   for (const key of Object.keys(value as Record<string, unknown>).sort()) {
     const item = (value as Record<string, unknown>)[key];
-    if (item !== undefined) result[key] = canonicalizeReplayValue(item);
+    if (item !== undefined) result[key] = canonicalizeReplayValue(item, `${path}.${key}`);
   }
   return result;
 }
@@ -400,7 +511,7 @@ function serializeReplayInput(input: SVGSemanticReplayInput): string {
     try {
       parsed = JSON.parse(input);
     } catch (error) {
-      throw new Error(`INVALID_SEMANTIC_REPLAY: expected JSON (${error instanceof Error ? error.message : String(error)})`);
+      throw new SVGSemanticError("INVALID_SEMANTIC_REPLAY", "expected JSON input");
     }
     return JSON.stringify(canonicalizeReplayValue(parsed));
   }
@@ -411,7 +522,7 @@ function semanticReplayEqual(expected: unknown, actual: unknown, path = "root"):
   if (typeof expected === "number" || typeof actual === "number") {
     if (typeof expected !== "number" || typeof actual !== "number") return false;
     if (!Number.isFinite(expected) || !Number.isFinite(actual)) {
-      throw new Error(`INVALID_SEMANTIC_REPLAY: non-finite number at ${path}`);
+      throw new SVGSemanticError("INVALID_SEMANTIC_REPLAY", "non-finite number", path);
     }
     if (path.endsWith(".schemaVersion") || path.endsWith(".tolerance")) return expected === actual;
     return Math.abs(expected - actual) <= SVG_SEMANTIC_TOLERANCE;

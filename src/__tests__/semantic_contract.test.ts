@@ -210,7 +210,7 @@ objects:
   R: { type: rect, size: [100, 100], place: { inside: UNKNOWN, margin: 10 } }
 `;
       const doc = parseRelGeo(yaml, { mode: "editor" });
-      expect(() => resolveGeometry(doc)).toThrow("INVALID_EXPRESSION: Invalid expression syntax: Unknown identifier: UNKNOWN");
+      expect(() => resolveGeometry(doc)).toThrow("UNKNOWN_REFERENCE: Unknown placement container \"UNKNOWN\"");
     });
 
     it("should throw error when resolveGeometry encounters an unknown identifier in size", () => {
